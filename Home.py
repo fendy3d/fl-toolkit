@@ -31,6 +31,13 @@ TOOLS = [
         "desc": "Generate print-ready 78×100 mm shipping labels from a Lion Parcel "
                 "shipment CSV — one page per recipient.",
     },
+    {
+        "icon": "📄",
+        "name": "Rename BUPOT",
+        "page": "pages/3_Rename_BUPOT.py",
+        "desc": "Batch-rename Bukti Potong (BUPOT) tax slips to a standardized "
+                "filename. Upload PDFs, pick the type, download renamed copies.",
+    },
 ]
 
 for tool in TOOLS:

@@ -10,7 +10,9 @@ streamlit>=1.40
 pandas>=2.0
 fpdf2>=2.7
 
+# Rename BUPOT (renameBUPOT):
+pdfplumber>=0.11
+
 # Deferred tools (add when migrated):
 #   Phonics (tts-phonics):               google-cloud-texttospeech
 #   Tax Tools (tax_tools):               openpyxl, pdfplumber
-#   Rename BUPOT (renameBUPOT):          pdfplumber
