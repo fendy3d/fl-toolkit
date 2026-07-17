@@ -10,9 +10,11 @@ Community Cloud installs it via apt.
 
 from __future__ import annotations
 
+import io
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 import streamlit as st
@@ -122,6 +124,24 @@ results = st.session_state.get("compress_results", [])
 if results:
     st.divider()
     st.subheader("Results")
+
+    # "Download all" — bundle every successful result into one ZIP, since a
+    # browser can't download multiple files from a single button.
+    ok_results = [r for r in results if not r["error"]]
+    if len(ok_results) > 1:
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for r in ok_results:
+                zf.writestr(r["name"], r["data"])
+        st.download_button(
+            f"⬇️ Download all {len(ok_results)} as ZIP",
+            data=zip_buf.getvalue(),
+            file_name="compressed_pdfs.zip",
+            mime="application/zip",
+            type="primary",
+            key="dl_all",
+        )
+
     for i, r in enumerate(results):
         if r["error"]:
             st.error(f"❌ {r['name']}: {r['error']}")
