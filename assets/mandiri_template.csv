@@ -1,0 +1,4 @@
+Account No,Date,Val. Date,Transaction Code,Description,Description,Reference No.,Debit,Credit
+"1234567890","01/05/2024","01/05/2024","TRF","TRANSFER FROM","PT CLIENT ABC","REF001","0.00","1,500,000.00"
+"1234567890","02/05/2024","02/05/2024","TRF","PAYMENT TO","PT VENDOR XYZ","REF002","500,000.00","0.00"
+"1234567890","03/05/2024","03/05/2024","INT","INTEREST","","REF003","0.00","12,345.00"

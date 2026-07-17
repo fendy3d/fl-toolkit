@@ -38,6 +38,13 @@ TOOLS = [
         "desc": "Batch-rename Bukti Potong (BUPOT) tax slips to a standardized "
                 "filename. Upload PDFs, pick the type, download renamed copies.",
     },
+    {
+        "icon": "🏦",
+        "name": "Bank Statements → Xero",
+        "page": "pages/4_Bank_Statements.py",
+        "desc": "Convert Mandiri or BCA corporate bank statement CSVs into a "
+                "Xero-friendly import format.",
+    },
 ]
 
 for tool in TOOLS:
