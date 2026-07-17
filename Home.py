@@ -18,11 +18,11 @@ st.divider()
 # One entry per live tool. Add a row here whenever a new page is migrated.
 TOOLS = [
     {
-        "icon": "🗜️",
-        "name": "Compress PDF",
-        "page": "pages/1_Compress_PDF.py",
-        "desc": "Shrink PDF file size with Ghostscript. Upload one or more PDFs, "
-                "pick a quality level, download the compressed results.",
+        "icon": "📄",
+        "name": "PDF Tools",
+        "page": "pages/1_PDF_Tools.py",
+        "desc": "All-in-one PDF toolkit: compress, merge, split, make booklets, "
+                "convert to image/Excel, unlock, and watermark.",
     },
     {
         "icon": "🏷️",
