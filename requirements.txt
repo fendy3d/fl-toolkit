@@ -1,0 +1,16 @@
+# FL Toolkit — consolidated Python dependencies for all live tools.
+# Add to this file as each tool is migrated; keep versions compatible across tools.
+
+streamlit>=1.40
+
+# Compress PDF (pdfbot): pure Ghostscript via subprocess — no extra Python deps.
+#   System package: ghostscript (see packages.txt)
+
+# Shipping Labels (uniqlo-lionParcel):
+pandas>=2.0
+fpdf2>=2.7
+
+# Deferred tools (add when migrated):
+#   Phonics (tts-phonics):               google-cloud-texttospeech
+#   Tax Tools (tax_tools):               openpyxl, pdfplumber
+#   Rename BUPOT (renameBUPOT):          pdfplumber

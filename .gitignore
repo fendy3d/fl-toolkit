@@ -1,0 +1,17 @@
+# Secrets — NEVER commit the real password / API keys
+.streamlit/secrets.toml
+
+# Claude Code local settings (may contain machine-specific permissions)
+.claude/settings.local.json
+
+# Local clones of the source repos (used for migration reference only)
+_source_repos/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
