@@ -1,3 +1,4 @@
-Berat,Nama Pengirim,Telepon Pengirim,Kota Pengirim,Alamat Pengirim,Informasi Alamat Pengirim,Apakah Dropship?,Nama Dropshiper,Telfon Dropshiper,Nama Penerima,Telepon Penerima,Kecamatan,Alamat Penerima,Informasi Alamat Penerima,Cara Pembayaran,Nama Barang,Nilai Barang,Jenis asuransi,Apakah Input Asuransi?
-1,Euniqeu Jastip,081200000000,Jakarta,Jl. Contoh Pengirim No. 1,,Tidak,,,Budi Contoh,081211112222,Kelapa Gading,"Jl. Melati No. 10, RT 01/RW 02, Kelapa Gading",Dekat masjid,COD,Kaos,150000,Tidak,Tidak
-1,Euniqeu Jastip,081200000000,Jakarta,Jl. Contoh Pengirim No. 1,,Tidak,,,Siti Sampel,081233334444,Tanjung Priok,"Jl. Anggrek Blok C No. 5, Tanjung Priok",Pagar hijau,Transfer,Celana,200000,Tidak,Tidak
+Berat,Nama Pengirim,Telepon Pengirim,Kota Pengirim,Alamat Pengirim,Informasi Alamat Pengirim,Apakah Dropship?,Nama Dropshiper,Telfon Dropshiper,Nama Penerima,Telepon Penerima,Kecamatan,Alamat Penerima,Pakai Asuransi?,Kota / kabupaten,kode pos,Jenis asuransi," Apakah Input Asuransi?
+",Jumlah,Jenis Barang,Keterangan,Nomor pesanan e-commerce,COD,Jenis Layanan,Biaya Pengiriman,Biaya Lainnya
+,,,,,,,,,Budi Contoh,081211112222,Kelapa Gading,"Jl. Melati No. 10, Jakarta Utara",ya,Jakarta Utara,14240,,,,,,,,,,
+,,,,,,,,,Siti Sampel,081233334444,Tanjung Priok,"Jl. Anggrek Blok C No. 5, Jakarta Utara",tidak,Jakarta Utara,14310,,,,,,,,,,

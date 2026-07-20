@@ -4,9 +4,13 @@ Preserves the original fpdf2 label-layout logic (78×100 mm label, one page per
 recipient, last-4-phone-digits box in the top-right corner, centered content
 block) but swaps CSV-path in / PDF-path out for Streamlit widgets.
 
-Reads a Lion Parcel shipment export CSV and produces a print-ready PDF of
-labels. Only these columns are used:
+Reads a Lion Parcel / JNT VIP shipment export CSV. Required columns:
     Nama Penerima, Telepon Penerima, Kecamatan, Alamat Penerima
+Optional columns (printed when present):
+    Kota / kabupaten, kode pos, Pakai Asuransi?
+
+Column names are matched case-insensitively with flexible spacing, so both the
+older and newer export layouts work.
 
 Python deps: pandas, fpdf2. Font asset: assets/Glyseric.otf.
 """
@@ -14,6 +18,8 @@ Python deps: pandas, fpdf2. Font asset: assets/Glyseric.otf.
 from __future__ import annotations
 
 import io
+import math
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -25,11 +31,54 @@ from auth import require_auth
 st.set_page_config(page_title="Shipping Labels · FL Toolkit", page_icon="🏷️")
 require_auth()
 
-# Font shipped with the repo (single style, used for all label text).
 FONT_PATH = str(Path(__file__).resolve().parent.parent / "assets" / "Glyseric.otf")
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "assets" / "shipment_template.csv"
 
-REQUIRED_COLS = ["Nama Penerima", "Telepon Penerima", "Kecamatan", "Alamat Penerima"]
+# Required columns, by the candidate names we accept for each.
+REQUIRED = {
+    "nama": ["nama penerima"],
+    "telepon": ["telepon penerima", "telfon penerima", "no hp penerima"],
+    "kecamatan": ["kecamatan"],
+    "alamat": ["alamat penerima"],
+}
+# Optional columns — printed only when the column exists (and has a value).
+OPTIONAL = {
+    "kota": ["kota / kabupaten", "kota/kabupaten", "kota kabupaten", "kota / kab", "kota"],
+    "kodepos": ["kode pos", "kodepos", "kode_pos"],
+    "asuransi": ["pakai asuransi?", "pakai asuransi", "asuransi"],
+}
+
+TRUTHY = {"ya", "y", "yes", "iya", "true", "1"}
+
+
+def _norm(name: str) -> str:
+    """Normalize a column name: collapse whitespace/newlines, lowercase."""
+    return re.sub(r"\s+", " ", str(name)).strip().lower()
+
+
+def resolve_columns(df: pd.DataFrame) -> dict[str, str | None]:
+    """Map our logical field names to the actual column names in `df`."""
+    lookup = {_norm(c): c for c in df.columns}
+    found: dict[str, str | None] = {}
+    for key, candidates in {**REQUIRED, **OPTIONAL}.items():
+        found[key] = next((lookup[c] for c in candidates if c in lookup), None)
+    return found
+
+
+def cell(row, col: str | None) -> str:
+    """Read a cell as clean text: blanks/NaN → '', floats like 14240.0 → '14240'."""
+    if not col:
+        return ""
+    value = row.get(col)
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        if math.isnan(value):
+            return ""
+        if value.is_integer():
+            return str(int(value))
+    text = str(value).strip()
+    return "" if text.lower() in ("nan", "none") else text
 
 
 # ── Label generation (ported from uniqlo-lionParcel) ─────────────────────────
@@ -52,7 +101,8 @@ def wrap_text(pdf: FPDF, text: str, max_width_mm: float) -> list[str]:
     return lines
 
 
-def generate_labels_pdf(df: pd.DataFrame, sender_label: str) -> bytes:
+def generate_labels_pdf(df: pd.DataFrame, sender_label: str,
+                        cols: dict[str, str | None]) -> bytes:
     """Build the labels PDF from `df` and return it as bytes."""
     page_w, page_h = 78, 100
     margin_x = 6
@@ -67,7 +117,7 @@ def generate_labels_pdf(df: pd.DataFrame, sender_label: str) -> bytes:
     for _, row in df.iterrows():
         pdf.add_page()
 
-        phone_str = str(row["Telepon Penerima"])
+        phone_str = cell(row, cols["telepon"])
         last4 = phone_str[-4:]
 
         # --- Last 4 digits box (top-right corner) ---
@@ -90,28 +140,39 @@ def generate_labels_pdf(df: pd.DataFrame, sender_label: str) -> bytes:
 
         # --- Main label content (centered block) ---
         max_text_w = page_w - 2 * margin_x
-        records: list[tuple[str, int, float, float]] = []
+        records: list[tuple[str, float, float, float]] = []
 
-        def add_label_value(label: str, value) -> None:
+        def add_label_value(label: str, value: str) -> None:
             pdf.set_font("Glyseric", size=font_size)
             indent = pdf.get_string_width(label)
-            lines = wrap_text(pdf, label + str(value), max_text_w)
-            for i, line in enumerate(lines):
+            for i, line in enumerate(wrap_text(pdf, label + value, max_text_w)):
                 ind = 0 if i == 0 else indent
                 if ind and pdf.get_string_width(line) > max_text_w - ind:
                     ind = 0
                 records.append((line, font_size, ind, 0))
 
-        add_label_value("Nama: ", row["Nama Penerima"])
-        add_label_value("No HP: ", row["Telepon Penerima"])
-        add_label_value("Kecamatan: ", row["Kecamatan"])
+        add_label_value("Nama: ", cell(row, cols["nama"]))
+        add_label_value("No HP: ", phone_str)
+        add_label_value("Kecamatan: ", cell(row, cols["kecamatan"]))
+
+        kota = cell(row, cols["kota"])
+        if kota:
+            add_label_value("Kota/Kab: ", kota)
+        kodepos = cell(row, cols["kodepos"])
+        if kodepos:
+            add_label_value("Kode Pos: ", kodepos)
 
         records.append(("Alamat lengkap:", font_size, 0, 0))
         pdf.set_font("Glyseric", size=font_size)
-        for line in wrap_text(pdf, str(row["Alamat Penerima"]), max_text_w):
+        for line in wrap_text(pdf, cell(row, cols["alamat"]), max_text_w):
             records.append((line, font_size, 0, 0))
 
-        records.append((f"From: {sender_label}", 10, 0, line_h * 1.5))
+        # Insurance line — shown whenever the column exists (blank → "Tidak").
+        if cols["asuransi"]:
+            flag = "Ya" if cell(row, cols["asuransi"]).lower() in TRUTHY else "Tidak"
+            records.append((f"Asuransi: {flag}", font_size, 0, line_h * 0.5))
+
+        records.append((f"From: {sender_label}", 10, 0, line_h))
 
         # Pass 1: widest line → block width.
         block_w = 0.0
@@ -145,13 +206,16 @@ def read_csv_any_encoding(data: bytes) -> pd.DataFrame:
 # ── UI ───────────────────────────────────────────────────────────────────────
 
 st.title("🏷️ Shipping Labels")
-st.write("Upload a Lion Parcel shipment CSV and generate a print-ready PDF of "
-         "78×100 mm labels — one page per recipient.")
+st.write("Upload a Lion Parcel / JNT shipment CSV and generate a print-ready PDF "
+         "of 78×100 mm labels — one page per recipient.")
 
 with st.expander("What CSV do I need?"):
-    st.write("A CSV containing at least these columns: "
-             f"{', '.join('`' + c + '`' for c in REQUIRED_COLS)}. "
-             "A standard Lion Parcel export already has them.")
+    st.write("**Required columns:** `Nama Penerima`, `Telepon Penerima`, "
+             "`Kecamatan`, `Alamat Penerima`")
+    st.write("**Optional (printed when present):** `Kota / kabupaten`, `kode pos`, "
+             "`Pakai Asuransi?`")
+    st.caption("Column names are matched ignoring case and extra spaces, so both "
+               "the older and newer export layouts work.")
     st.download_button(
         "⬇️ Download template CSV",
         data=TEMPLATE_PATH.read_bytes(),
@@ -169,20 +233,31 @@ if uploaded is not None:
         st.error(f"❌ {exc}")
         st.stop()
 
-    missing = [c for c in REQUIRED_COLS if c not in df.columns]
+    cols = resolve_columns(df)
+    missing = [k for k in REQUIRED if not cols[k]]
     if missing:
-        st.error(f"❌ CSV is missing required column(s): {', '.join(missing)}.\n\n"
-                 f"Found: {', '.join(df.columns)}")
+        names = ", ".join(REQUIRED[k][0] for k in missing)
+        st.error(f"❌ CSV is missing required column(s): {names}.\n\n"
+                 f"Found: {', '.join(str(c) for c in df.columns)}")
         st.stop()
 
     # Drop rows with no recipient name (e.g. trailing blank lines).
-    df = df[df["Nama Penerima"].notna() & (df["Nama Penerima"].astype(str).str.strip() != "")]
+    df = df[df[cols["nama"]].notna() &
+            (df[cols["nama"]].astype(str).str.strip() != "")]
+
+    present = [cols[k] for k in ("nama", "telepon", "kecamatan", "alamat",
+                                 "kota", "kodepos", "asuransi") if cols[k]]
+    absent = [k for k in OPTIONAL if not cols[k]]
     st.success(f"✅ Loaded {len(df)} recipient(s).")
-    st.dataframe(df[REQUIRED_COLS], use_container_width=True, hide_index=True)
+    if absent:
+        st.info("ℹ️ Not in this file (will be left off the label): "
+                + ", ".join(OPTIONAL[k][0] for k in absent))
+    st.dataframe(df[present], use_container_width=True, hide_index=True)
 
     if st.button("Generate labels", type="primary", disabled=df.empty):
         with st.spinner("Building PDF…"):
-            pdf_bytes = generate_labels_pdf(df, sender_label.strip() or "Euniqeu Jastip")
+            pdf_bytes = generate_labels_pdf(
+                df, sender_label.strip() or "Euniqeu Jastip", cols)
         st.session_state["labels_pdf"] = pdf_bytes
         st.session_state["labels_count"] = len(df)
 
