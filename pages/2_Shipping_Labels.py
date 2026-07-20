@@ -101,6 +101,56 @@ def wrap_text(pdf: FPDF, text: str, max_width_mm: float) -> list[str]:
     return lines
 
 
+def _build_records(pdf: FPDF, row, cols: dict[str, str | None], sender_label: str,
+                   font_size: float, line_h: float, max_text_w: float,
+                   phone_str: str) -> list[tuple[str, float, float, float]]:
+    """Lay out one label's lines at a given font size.
+
+    Returns (text, size, indent, gap_before) records.
+    """
+    records: list[tuple[str, float, float, float]] = []
+
+    def add_label_value(label: str, value: str) -> None:
+        pdf.set_font("Glyseric", size=font_size)
+        indent = pdf.get_string_width(label)
+        for i, line in enumerate(wrap_text(pdf, label + value, max_text_w)):
+            ind = 0 if i == 0 else indent
+            if ind and pdf.get_string_width(line) > max_text_w - ind:
+                ind = 0
+            records.append((line, font_size, ind, 0))
+
+    add_label_value("Nama: ", cell(row, cols["nama"]))
+    add_label_value("No HP: ", phone_str)
+    add_label_value("Kecamatan: ", cell(row, cols["kecamatan"]))
+
+    kota = cell(row, cols["kota"])
+    if kota:
+        add_label_value("Kota/Kab: ", kota)
+    kodepos = cell(row, cols["kodepos"])
+    if kodepos:
+        add_label_value("Kode Pos: ", kodepos)
+
+    records.append(("Alamat lengkap:", font_size, 0, 0))
+    pdf.set_font("Glyseric", size=font_size)
+    for line in wrap_text(pdf, cell(row, cols["alamat"]), max_text_w):
+        records.append((line, font_size, 0, 0))
+
+    # Insurance line — shown whenever the column exists (blank → "Tidak").
+    if cols["asuransi"]:
+        flag = "Ya" if cell(row, cols["asuransi"]).lower() in TRUTHY else "Tidak"
+        records.append((f"Asuransi: {flag}", font_size, 0, line_h * 0.5))
+
+    records.append((f"From: {sender_label}", font_size * 10 / 11, 0, line_h))
+    return records
+
+
+def _content_height(records, margin_top: float, line_h: float) -> float:
+    y = margin_top
+    for _, _, _, gap_before in records:
+        y += gap_before + line_h
+    return y
+
+
 def generate_labels_pdf(df: pd.DataFrame, sender_label: str,
                         cols: dict[str, str | None]) -> bytes:
     """Build the labels PDF from `df` and return it as bytes."""
@@ -109,6 +159,9 @@ def generate_labels_pdf(df: pd.DataFrame, sender_label: str,
     margin_top = 16  # start below the last-4-digits box so text never overlaps it
     line_h = 6
     font_size = 11
+    bottom_margin = 3
+    # Progressively smaller sizes; a long address shrinks until the label fits.
+    size_steps = (11, 10.5, 10, 9.5, 9, 8.5, 8, 7.5, 7)
 
     pdf = FPDF(unit="mm", format=(page_w, page_h))
     pdf.set_auto_page_break(auto=False)
@@ -140,39 +193,19 @@ def generate_labels_pdf(df: pd.DataFrame, sender_label: str,
 
         # --- Main label content (centered block) ---
         max_text_w = page_w - 2 * margin_x
-        records: list[tuple[str, float, float, float]] = []
 
-        def add_label_value(label: str, value: str) -> None:
-            pdf.set_font("Glyseric", size=font_size)
-            indent = pdf.get_string_width(label)
-            for i, line in enumerate(wrap_text(pdf, label + value, max_text_w)):
-                ind = 0 if i == 0 else indent
-                if ind and pdf.get_string_width(line) > max_text_w - ind:
-                    ind = 0
-                records.append((line, font_size, ind, 0))
-
-        add_label_value("Nama: ", cell(row, cols["nama"]))
-        add_label_value("No HP: ", phone_str)
-        add_label_value("Kecamatan: ", cell(row, cols["kecamatan"]))
-
-        kota = cell(row, cols["kota"])
-        if kota:
-            add_label_value("Kota/Kab: ", kota)
-        kodepos = cell(row, cols["kodepos"])
-        if kodepos:
-            add_label_value("Kode Pos: ", kodepos)
-
-        records.append(("Alamat lengkap:", font_size, 0, 0))
-        pdf.set_font("Glyseric", size=font_size)
-        for line in wrap_text(pdf, cell(row, cols["alamat"]), max_text_w):
-            records.append((line, font_size, 0, 0))
-
-        # Insurance line — shown whenever the column exists (blank → "Tidak").
-        if cols["asuransi"]:
-            flag = "Ya" if cell(row, cols["asuransi"]).lower() in TRUTHY else "Tidak"
-            records.append((f"Asuransi: {flag}", font_size, 0, line_h * 0.5))
-
-        records.append((f"From: {sender_label}", 10, 0, line_h))
+        # Auto-fit: use the largest font size whose laid-out content fits the
+        # label. Long apartment-style addresses shrink instead of overflowing.
+        records = None
+        used_line_h = line_h
+        for size in size_steps:
+            candidate_line_h = line_h * size / font_size
+            candidate = _build_records(pdf, row, cols, sender_label, size,
+                                       candidate_line_h, max_text_w, phone_str)
+            records = candidate
+            used_line_h = candidate_line_h
+            if _content_height(candidate, margin_top, candidate_line_h) <= page_h - bottom_margin:
+                break
 
         # Pass 1: widest line → block width.
         block_w = 0.0
@@ -187,8 +220,8 @@ def generate_labels_pdf(df: pd.DataFrame, sender_label: str,
             y += gap_before
             pdf.set_font("Glyseric", size=size)
             pdf.set_xy(block_x + indent, y)
-            pdf.cell(0, line_h, text)
-            y += line_h
+            pdf.cell(0, used_line_h, text)
+            y += used_line_h
 
     return bytes(pdf.output())
 
