@@ -42,8 +42,9 @@ TOOLS = [
         "icon": "🏦",
         "name": "Bank Statements → Xero",
         "page": "pages/4_Bank_Statements.py",
-        "desc": "Convert Mandiri or BCA corporate bank statement CSVs into a "
-                "Xero-friendly import format.",
+        "desc": "Convert Mandiri, BCA corporate, or BCA personal statement CSVs "
+                "into a Xero-friendly import format, or extract OCBC/BCA/UOB "
+                "credit-card transactions from a statement PDF.",
     },
 ]
 
