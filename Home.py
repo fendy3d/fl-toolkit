@@ -46,14 +46,6 @@ TOOLS = [
                 "into a Xero-friendly import format, or extract OCBC/BCA/UOB "
                 "credit-card transactions from a statement PDF.",
     },
-    {
-        "icon": "📧",
-        "name": "Send Payslips",
-        "page": "pages/5_Send_Payslips.py",
-        "desc": "Upload a combined payslips PDF (one employee per page), review "
-                "the auto-detected email on each page, then email every employee "
-                "their own payslip via Gmail.",
-    },
 ]
 
 for tool in TOOLS:
