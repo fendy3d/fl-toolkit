@@ -13,7 +13,7 @@ pikepdf>=8.0
 openpyxl>=3.1
 pdf2image>=1.17
 
-# Shipping Labels (uniqlo-lionParcel):
+# Shipping Labels (uniqlo-lionParcel) + Bank Statements + Payroll → BCA:
 pandas>=2.0
 fpdf2>=2.7
 

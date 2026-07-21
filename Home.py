@@ -46,6 +46,13 @@ TOOLS = [
                 "into a Xero-friendly import format, or extract OCBC/BCA/UOB "
                 "credit-card transactions from a statement PDF.",
     },
+    {
+        "icon": "💸",
+        "name": "Payroll → BCA",
+        "page": "pages/5_Payroll_BCA.py",
+        "desc": "Turn the Airtable Pay Run CSV into the BCA MultiAutoTransaksi "
+                "(MultiPayroll) upload file — no more CSV → xlsx step.",
+    },
 ]
 
 for tool in TOOLS:
