@@ -3,7 +3,8 @@
 
 streamlit>=1.40
 
-# PDF Tools (pdfbot — 8 tools):
+# PDF Tools (pdfbot — 8 tools) + Send Payslips (sendpayslips; also uses stdlib
+# smtplib/email):
 #   System packages: ghostscript (compress/watermark), poppler-utils (PDF→image)
 pypdf>=4.0
 reportlab>=4.0
