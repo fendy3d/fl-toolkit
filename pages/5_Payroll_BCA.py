@@ -28,18 +28,22 @@ from auth import require_auth
 st.set_page_config(page_title="Payroll → BCA · FL Toolkit", page_icon="💸", layout="centered")
 require_auth()
 
-# Header constants tied to Neo Academy's BCA payroll setup (from the sample
-# header: 0|PY|IBSYAYNEOP|04080175|<seq>|<date>|07|4083597979|<count>|09||).
-# Confirmed identical across 3 sample runs. The <seq> field (field5) is an
-# 8-digit sequence number BCA increments each run — it's a per-run input, not a
-# constant. The <date> and <count> fields are derived per-run.
+# Header field names + defaults, matching BCA's official MultiAutoTransaksi
+# converter (field mapping recovered from that tool's decompiled source). The
+# header line is:
+#   0|PY|<Corporate ID>|<Company Code>|<Header ID>|<Effective Date>|
+#     <Effective Time>|<Debited Account>|<count>|<Business Type>|<Remarks1>|<Remarks2>
+# Header ID, Effective Date, Effective Time and count are set per run in the UI;
+# the rest identify the BCA payroll account and rarely change.
 HEADER_DEFAULTS = {
-    "service": "PY",
-    "company_code": "IBSYAYNEOP",
-    "field4": "04080175",
-    "field7": "07",
+    "service": "PY",              # transaction-type code (fixed for Multi Payroll)
+    "corporate_id": "IBSYAYNEOP",
+    "company_code": "04080175",
     "debit_account": "4083597979",
-    "field9": "09",
+    "effective_time": "07",       # BCA effective-time slot code (cboTime)
+    "business_type": "09",        # BCA business-type code (cboBusiness)
+    "remarks1": "",
+    "remarks2": "",
 }
 
 # Logical field → candidate CSV column names (exact match first, then substring).
@@ -93,9 +97,10 @@ def build_multipayroll(csv_bytes: bytes, run_date: datetime.date,
 
     n = len(df)
     header_line = "|".join([
-        "0", header["service"], header["company_code"], header["field4"],
-        header["field5"], run_date.strftime("%Y%m%d"), header["field7"],
-        header["debit_account"], f"{n:05d}", header["field9"], "", "",
+        "0", header["service"], header["corporate_id"], header["company_code"],
+        header["header_id"], run_date.strftime("%Y%m%d"), header["effective_time"],
+        header["debit_account"], f"{n:05d}", header["business_type"],
+        header["remarks1"], header["remarks2"],
     ])
 
     lines = [header_line]
@@ -161,32 +166,38 @@ st.info("🔒 Payroll data is processed in-memory for your session only and is "
         "never stored on the server.")
 
 f = st.file_uploader("Pay Run CSV (from Airtable)", type="csv", key="pay_csv")
-c_date, c_seq = st.columns(2)
+c_date, c_time, c_hdr = st.columns(3)
 with c_date:
-    run_date = st.date_input("Payroll file date", value=datetime.date.today(), key="pay_date")
-with c_seq:
-    seq = st.number_input("File sequence number", min_value=0, value=13, step=1,
-                          key="pay_seq",
+    run_date = st.date_input("Effective Date", value=datetime.date.today(), key="pay_date")
+with c_time:
+    effective_time = st.text_input("Effective Time", HEADER_DEFAULTS["effective_time"],
+                                   key="pay_time",
+                                   help="BCA effective-time slot code (the cboTime value "
+                                        "in BCA's converter). Your sample files all use "
+                                        "07.")
+with c_hdr:
+    seq = st.number_input("Header ID", min_value=0, value=13, step=1, key="pay_seq",
                           help="BCA increments this by 1 for every payroll file it "
-                               "generates (the sample files were 10, 11, 12). Set it "
-                               "to the next value BCA expects — confirm the exact "
-                               "number with your BCA setup.")
+                               "generates (samples were 10, 11, 12). It must not repeat "
+                               "within 3 months. Confirm the next value with BCA.")
 
 with st.expander("Advanced — BCA header settings"):
-    st.caption("These identify your BCA payroll account and rarely change. The file "
-               "date, sequence number, and transaction count are set above / filled "
-               "in automatically.")
+    st.caption("Labels match BCA's MultiAutoTransaksi converter. These identify your "
+               "BCA payroll account and rarely change. Effective Date, Effective Time, "
+               "Header ID, and the transaction count are set above / filled automatically.")
     cfg = {}
     c1, c2 = st.columns(2)
     with c1:
-        cfg["service"] = st.text_input("Service code", HEADER_DEFAULTS["service"])
-        cfg["company_code"] = st.text_input("Company code", HEADER_DEFAULTS["company_code"])
-        cfg["debit_account"] = st.text_input("Debit account", HEADER_DEFAULTS["debit_account"])
+        cfg["corporate_id"] = st.text_input("Corporate ID", HEADER_DEFAULTS["corporate_id"])
+        cfg["company_code"] = st.text_input("Company Code", HEADER_DEFAULTS["company_code"])
+        cfg["debit_account"] = st.text_input("Debited Account", HEADER_DEFAULTS["debit_account"])
+        cfg["business_type"] = st.text_input("Business Type", HEADER_DEFAULTS["business_type"])
     with c2:
-        cfg["field4"] = st.text_input("Field 4", HEADER_DEFAULTS["field4"])
-        cfg["field7"] = st.text_input("Field 7", HEADER_DEFAULTS["field7"])
-        cfg["field9"] = st.text_input("Field 9", HEADER_DEFAULTS["field9"])
-    cfg["field5"] = f"{int(seq):08d}"
+        cfg["service"] = st.text_input("Transaction code", HEADER_DEFAULTS["service"])
+        cfg["remarks1"] = st.text_input("Remarks 1", HEADER_DEFAULTS["remarks1"], max_chars=18)
+        cfg["remarks2"] = st.text_input("Remarks 2", HEADER_DEFAULTS["remarks2"], max_chars=18)
+    cfg["effective_time"] = effective_time.strip()
+    cfg["header_id"] = f"{int(seq):08d}"
 
 if st.button("Build BCA files", type="primary", disabled=not f):
     try:
