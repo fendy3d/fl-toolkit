@@ -170,11 +170,13 @@ c_date, c_time, c_hdr = st.columns(3)
 with c_date:
     run_date = st.date_input("Effective Date", value=datetime.date.today(), key="pay_date")
 with c_time:
-    effective_time = st.text_input("Effective Time", HEADER_DEFAULTS["effective_time"],
-                                   key="pay_time",
-                                   help="BCA effective-time slot code (the cboTime value "
-                                        "in BCA's converter). Your sample files all use "
-                                        "07.")
+    _TIME_OPTS = [f"{h:02d}" for h in range(24)]  # BCA cboTime: hour 00–23
+    effective_time = st.selectbox(
+        "Effective Time", _TIME_OPTS,
+        index=_TIME_OPTS.index(HEADER_DEFAULTS["effective_time"]),
+        format_func=lambda c: f"{c}:00", key="pay_time",
+        help="Hour the payroll takes effect (BCA's Effective Time / cboTime). "
+             "Your sample files use 07:00.")
 with c_hdr:
     seq = st.number_input("Header ID", min_value=0, value=13, step=1, key="pay_seq",
                           help="BCA increments this by 1 for every payroll file it "
@@ -196,7 +198,7 @@ with st.expander("Advanced — BCA header settings"):
         cfg["service"] = st.text_input("Transaction code", HEADER_DEFAULTS["service"])
         cfg["remarks1"] = st.text_input("Remarks 1", HEADER_DEFAULTS["remarks1"], max_chars=18)
         cfg["remarks2"] = st.text_input("Remarks 2", HEADER_DEFAULTS["remarks2"], max_chars=18)
-    cfg["effective_time"] = effective_time.strip()
+    cfg["effective_time"] = effective_time
     cfg["header_id"] = f"{int(seq):08d}"
 
 if st.button("Build BCA files", type="primary", disabled=not f):
