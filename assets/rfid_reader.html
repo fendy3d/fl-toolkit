@@ -109,7 +109,7 @@
     <div id="log"></div>
   </details>
   <div class="muted" style="font-size:12px">
-    Chrome or Edge on desktop · 115200 baud · card keys always read back as zeros — the card never reveals them.
+    Chrome or Edge on desktop · 115200 baud · shows card identification (no memory dump).
   </div>
 </div>
 
@@ -196,7 +196,9 @@
     $('cardType').textContent=type;
     $('cardId').textContent='ID: '+uidColon(c.uid);
 
-    const kv=[['Family', c.std?('MiFare ('+c.std+')'):'MiFare'], ['Manufacturer', manufacturer(c.uid)]];
+    const kv=[['Family', c.std?('MiFare ('+c.std+')'):'MiFare']];
+    // Manufacturer byte is only meaningful on 7-byte UIDs.
+    if(c.uidLength===7 || (c.uid||'').length===14) kv.push(['Manufacturer', manufacturer(c.uid)]);
     if(mem) kv.push(['Memory', mem+' bytes']);
     if(status!=='—') kv.push(['Status', status]);
     $('kv').innerHTML=kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
@@ -218,33 +220,7 @@
     }
     $('info').innerHTML=info;
 
-    const secEl=$('sectors'); secEl.innerHTML='';
-    if(c.family==='classic' && c.sectors) renderSectors(secEl,c.sectors);
-    else if(c.family==='ultralight' && c.pages) renderPages(secEl,c.pages);
-  }
-
-  function renderSectors(secEl,sectors){
-    for(const s of sectors){
-      const wrap=document.createElement('div'); wrap.className='sec';
-      const denied=s.auth!=='ok'; let rows='';
-      for(const b of (s.blocks||[])){ const data=b.data;
-        rows+=`<tr class="${b.trailer?'trailer':''}"><td class="blk">${b.block}${b.trailer?' 🔑':''}</td>`+
-          `<td>${data?fmtHex(data):'<span class="muted">— unreadable —</span>'}</td>`+
-          `<td class="ascii">${data?esc(ascii(data)):''}</td></tr>`;
-      }
-      wrap.innerHTML=`<div class="sec-h">Sector ${s.sector}<span class="tag ${denied?'bad':'ok'}">${denied?'locked (needs key)':'read'}</span></div>`+
-        (denied?'':`<div class="scroll"><table><tr><th class="blk">blk</th><th>data (hex)</th><th>ascii</th></tr>${rows}</table></div>`);
-      secEl.appendChild(wrap);
-    }
-  }
-
-  function renderPages(secEl,pages){
-    let rows='';
-    pages.forEach((data,i)=>{ rows+=`<tr><td class="blk">${i}</td><td>${fmtHex(data)}</td><td class="ascii">${esc(ascii(data))}</td></tr>`; });
-    const d=document.createElement('details'); d.className='sec'; d.style.marginTop='12px'; d.open=false;
-    d.innerHTML=`<summary class="sec-h">Memory dump — ${pages.length} pages</summary>`+
-      `<div class="scroll"><table><tr><th class="blk">pg</th><th>data (hex)</th><th>ascii</th></tr>${rows}</table></div>`;
-    secEl.appendChild(d);
+    $('sectors').innerHTML='';   // identification only — no memory dump
   }
 
   function handleLine(line){

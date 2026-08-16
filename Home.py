@@ -58,7 +58,7 @@ TOOLS = [
         "name": "RFID Reader",
         "page": "pages/6_RFID_Reader.py",
         "desc": "Read RFID/NFC cards from an ESP32 + RC522 over USB. Tap a card to "
-                "see its UID, type, and full MIFARE Classic memory dump in the browser.",
+                "see its type, ID, manufacturer, memory, and NDEF/version details.",
     },
 ]
 

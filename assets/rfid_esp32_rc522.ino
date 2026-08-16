@@ -1,13 +1,14 @@
 /*
  * FL Toolkit — ESP32 + RC522 RFID reader
  * ---------------------------------------
- * Prints ONE JSON line per tapped card over USB serial @ 115200 baud.
+ * Identifies each tapped card and reports it two ways over USB @ 115200 baud:
+ *   1. a readable summary block (nice to read in the Arduino Serial Monitor), and
+ *   2. one compact JSON line (consumed by the FL Toolkit "RFID Reader" web page,
+ *      which renders the full formatted view).
  *
- *  • MIFARE Classic (Mini/1K/4K) -> full sector/block dump with the factory
- *    default key FF FF FF FF FF FF (key A). Sectors on another key -> "denied".
- *  • MIFARE Ultralight / NTAG21x -> ATQA, SAK, GET_VERSION, and a full page
- *    dump. The web page turns this into type (e.g. NTAG215), manufacturer,
- *    memory size, NDEF status, and the Get-Version breakdown.
+ * Reports: standard, UID, ATQA, SAK, card type. For MIFARE Ultralight / NTAG21x
+ * it also runs GET_VERSION (-> exact type, memory, vendor) and reads the first
+ * pages to determine NDEF status. No memory/sector dump.
  *
  * WIRING  (RC522  ->  ESP32 dev board)   ⚠ RC522 is 3.3 V — never wire it to 5 V
  *   SDA / SS  -> GPIO 5          SCK   -> GPIO 18
@@ -25,102 +26,48 @@
 #define RST_PIN  22
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
-MFRC522::MIFARE_Key key;
 
-void printHex(byte *buffer, byte len) {
-  for (byte i = 0; i < len; i++) {
-    if (buffer[i] < 0x10) Serial.print('0');
-    Serial.print(buffer[i], HEX);
-  }
-}
+void printByteHex(byte b)              { if (b < 0x10) Serial.print('0'); Serial.print(b, HEX); }
+void printHex(byte *buf, byte len)     { for (byte i = 0; i < len; i++) printByteHex(buf[i]); }
+void printHexColon(byte *buf, byte len){ for (byte i = 0; i < len; i++) { if (i) Serial.print(':'); printByteHex(buf[i]); } }
+void printAtqa(word a)                 { printByteHex(a >> 8); printByteHex(a & 0xFF); }
 
-// ── MIFARE Classic: one sector as JSON ──────────────────────────────────────
-void dumpSector(byte sector) {
-  byte firstBlock, nBlocks;
-  if (sector < 32) { nBlocks = 4;  firstBlock = sector * 4; }
-  else             { nBlocks = 16; firstBlock = 128 + (sector - 32) * 16; }
-  byte trailer = firstBlock + nBlocks - 1;
-
-  Serial.print("{\"sector\":");
-  Serial.print(sector);
-
-  MFRC522::StatusCode status = mfrc522.PCD_Authenticate(
-      MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailer, &key, &(mfrc522.uid));
-  if (status != MFRC522::STATUS_OK) {
-    Serial.print(",\"auth\":\"denied\",\"blocks\":[]}");
-    return;
-  }
-  Serial.print(",\"auth\":\"ok\",\"blocks\":[");
-  for (byte b = 0; b < nBlocks; b++) {
-    byte blockAddr = firstBlock + b;
-    byte buffer[18];
-    byte size = sizeof(buffer);
-    if (b) Serial.print(',');
-    Serial.print("{\"block\":");
-    Serial.print(blockAddr);
-    Serial.print(",\"trailer\":");
-    Serial.print(blockAddr == trailer ? "true" : "false");
-    if (mfrc522.MIFARE_Read(blockAddr, buffer, &size) != MFRC522::STATUS_OK) {
-      Serial.print(",\"data\":null}");
-    } else {
-      Serial.print(",\"data\":\"");
-      printHex(buffer, 16);
-      Serial.print("\"}");
-    }
-  }
-  Serial.print("]}");
-}
-
-// ── Ultralight / NTAG: GET_VERSION (0x60) -> 8 bytes ────────────────────────
+// Ultralight / NTAG GET_VERSION (0x60) -> 8 bytes. Not all UL support it.
 bool getVersion(byte *out8) {
   byte cmd[3];
   cmd[0] = 0x60;
   if (mfrc522.PCD_CalculateCRC(cmd, 1, &cmd[1]) != MFRC522::STATUS_OK) return false;
   byte back[12];
-  byte backLen = sizeof(back);
-  byte validBits = 0;
-  MFRC522::StatusCode s = mfrc522.PCD_TransceiveData(cmd, 3, back, &backLen, &validBits, 0, true);
-  if (s != MFRC522::STATUS_OK || backLen < 8) return false;   // some UL don't support it
+  byte backLen = sizeof(back), validBits = 0;
+  if (mfrc522.PCD_TransceiveData(cmd, 3, back, &backLen, &validBits, 0, true) != MFRC522::STATUS_OK) return false;
+  if (backLen < 8) return false;
   for (byte i = 0; i < 8; i++) out8[i] = back[i];
   return true;
 }
 
-// How many pages to dump, from the GET_VERSION storage-size byte.
-byte pageCount(bool haveVer, byte storage) {
-  if (!haveVer) return 16;          // classic MIFARE Ultralight
-  switch (storage) {
-    case 0x0F: return 45;           // NTAG213
-    case 0x11: return 135;          // NTAG215
-    case 0x13: return 231;          // NTAG216
-    case 0x0B: return 20;           // UL EV1 (MF0UL11)
-    case 0x0E: return 41;           // UL EV1 (MF0UL21)
-    default:   return 16;
+// Read the first 8 pages (into 32 bytes) — enough for NDEF status. Returns count.
+byte readFirstPages(byte *out32) {
+  byte count = 0;
+  for (byte p = 0; p < 8; p += 4) {
+    byte buf[18];
+    byte size = sizeof(buf);
+    if (mfrc522.MIFARE_Read(p, buf, &size) != MFRC522::STATUS_OK) break;
+    for (byte i = 0; i < 4; i++) { memcpy(out32 + (p + i) * 4, buf + i * 4, 4); count = p + i + 1; }
   }
+  return count;
 }
 
-void dumpUltralight() {
-  byte ver[8];
-  bool haveVer = getVersion(ver);
-
-  Serial.print(",\"family\":\"ultralight\",\"version\":\"");
-  if (haveVer) printHex(ver, 8);
-  Serial.print("\",\"pages\":[");
-
-  byte pages = pageCount(haveVer, haveVer ? ver[6] : 0);
-  bool first = true;
-  for (byte p = 0; p < pages; p += 4) {
-    byte buffer[18];
-    byte size = sizeof(buffer);
-    if (mfrc522.MIFARE_Read(p, buffer, &size) != MFRC522::STATUS_OK) break;
-    for (byte i = 0; i < 4 && (p + i) < pages; i++) {
-      if (!first) Serial.print(',');
-      first = false;
-      Serial.print('"');
-      printHex(&buffer[i * 4], 4);
-      Serial.print('"');
-    }
-  }
-  Serial.print("]");
+void printReadable(word atqa, MFRC522::PICC_Type t, byte *ver, bool haveVer) {
+  Serial.println();
+  Serial.println(F("============ Card ============"));
+  Serial.println(F("Standard : ISO14443 Type A"));
+  Serial.print  (F("UID      : ")); printHexColon(mfrc522.uid.uidByte, mfrc522.uid.size); Serial.println();
+  Serial.print  (F("ATQA     : 0x")); printAtqa(atqa);
+  Serial.print  (F("   SAK: 0x")); printByteHex(mfrc522.uid.sak); Serial.println();
+  Serial.print  (F("Type     : ")); Serial.println(mfrc522.PICC_GetTypeName(t));
+  if (haveVer) { Serial.print(F("Version  : ")); printHexColon(ver, 8); Serial.println(); }
+  Serial.println(F("Formatted view: FL Toolkit -> RFID Reader"));
+  Serial.println(F("============================="));
 }
 
 void setup() {
@@ -129,52 +76,47 @@ void setup() {
   SPI.begin();                       // ESP32 VSPI: SCK18, MISO19, MOSI23, SS5
   mfrc522.PCD_Init();
   delay(50);
-  for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;   // factory default key
   Serial.println("{\"event\":\"ready\",\"reader\":\"RC522\"}");
 }
 
 void loop() {
-  // RequestA first so we can capture ATQA, then Select to get UID + SAK.
+  // RequestA first (to capture ATQA), then Select (fills UID + SAK).
   byte atqaBuf[2];
   byte atqaLen = sizeof(atqaBuf);
   if (mfrc522.PICC_RequestA(atqaBuf, &atqaLen) != MFRC522::STATUS_OK) return;
   if (!mfrc522.PICC_ReadCardSerial()) return;
 
-  MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
+  MFRC522::PICC_Type t = mfrc522.PICC_GetType(mfrc522.uid.sak);
   word atqa = (word)atqaBuf[1] << 8 | atqaBuf[0];
 
+  bool isClassic = (t == MFRC522::PICC_TYPE_MIFARE_MINI ||
+                    t == MFRC522::PICC_TYPE_MIFARE_1K   ||
+                    t == MFRC522::PICC_TYPE_MIFARE_4K);
+  bool isUL = (t == MFRC522::PICC_TYPE_MIFARE_UL);
+
+  byte ver[8];  bool haveVer = false;
+  byte pages[32]; byte nPages = 0;
+  if (isUL) { haveVer = getVersion(ver); nPages = readFirstPages(pages); }
+
+  // ── machine JSON line (for the web page) ──
   Serial.print("{\"event\":\"card\",\"std\":\"ISO14443 Type A\",\"uid\":\"");
   printHex(mfrc522.uid.uidByte, mfrc522.uid.size);
-  Serial.print("\",\"uidLength\":");
-  Serial.print(mfrc522.uid.size);
-  Serial.print(",\"atqa\":\"");
-  if (atqa < 0x1000) Serial.print('0');
-  if (atqa < 0x0100) Serial.print('0');
-  if (atqa < 0x0010) Serial.print('0');
-  Serial.print(atqa, HEX);
-  Serial.print("\",\"sak\":\"");
-  if (mfrc522.uid.sak < 0x10) Serial.print('0');
-  Serial.print(mfrc522.uid.sak, HEX);
-  Serial.print("\",\"piccName\":\"");
-  Serial.print(mfrc522.PICC_GetTypeName(piccType));
+  Serial.print("\",\"uidLength\":");   Serial.print(mfrc522.uid.size);
+  Serial.print(",\"atqa\":\"");        printAtqa(atqa);
+  Serial.print("\",\"sak\":\"");       printByteHex(mfrc522.uid.sak);
+  Serial.print("\",\"piccName\":\"");  Serial.print(mfrc522.PICC_GetTypeName(t));
+  Serial.print("\",\"family\":\"");    Serial.print(isClassic ? "classic" : isUL ? "ultralight" : "other");
   Serial.print("\"");
-
-  if (piccType == MFRC522::PICC_TYPE_MIFARE_MINI ||
-      piccType == MFRC522::PICC_TYPE_MIFARE_1K   ||
-      piccType == MFRC522::PICC_TYPE_MIFARE_4K) {
-    byte sectors = (piccType == MFRC522::PICC_TYPE_MIFARE_4K)   ? 40 :
-                   (piccType == MFRC522::PICC_TYPE_MIFARE_MINI) ?  5 : 16;
-    Serial.print(",\"family\":\"classic\",\"sectors\":[");
-    for (byte s = 0; s < sectors; s++) { if (s) Serial.print(','); dumpSector(s); }
+  if (isUL) {
+    Serial.print(",\"version\":\"");   if (haveVer) printHex(ver, 8);
+    Serial.print("\",\"pages\":[");
+    for (byte i = 0; i < nPages; i++) { if (i) Serial.print(','); Serial.print('"'); printHex(pages + i * 4, 4); Serial.print('"'); }
     Serial.print("]");
-  } else if (piccType == MFRC522::PICC_TYPE_MIFARE_UL) {
-    dumpUltralight();
-  } else {
-    Serial.print(",\"family\":\"other\"");
   }
-
   Serial.println("}");
 
+  // ── readable summary (for the Serial Monitor) ──
+  printReadable(atqa, t, ver, haveVer);
+
   mfrc522.PICC_HaltA();
-  mfrc522.PCD_StopCrypto1();
 }

@@ -30,7 +30,8 @@ FIRMWARE = (ASSETS / "rfid_esp32_rc522.ino").read_text(encoding="utf-8")
 
 st.title("📇 RFID Reader")
 st.write("Plug in your **ESP32 + RC522** over USB, connect below, and tap a card to "
-         "see its UID, type, and full MIFARE Classic memory dump — live.")
+         "see its details — type, ID, manufacturer, memory, and (for NTAG/Ultralight) "
+         "NDEF status and GET_VERSION info — live.")
 st.info("🔒 Card data goes straight from USB to your browser (Web Serial). It never "
         "reaches the server. Works in **Chrome or Edge on desktop**.")
 
@@ -66,13 +67,11 @@ st.caption("Tip: if the **Connect** button does nothing in this embedded view, u
 st.download_button("⬇️ Download standalone reader (open in Chrome)", data=READER_HTML,
                    file_name="rfid_reader.html", mime="text/html")
 
-with st.expander("Notes on the full dump"):
+with st.expander("What you'll see"):
     st.markdown(
-        "- The firmware tries the **factory-default key** `FF FF FF FF FF FF` on every "
-        "sector. Sectors protected with a different key show as **locked** — that's "
-        "expected; the card won't reveal them without the correct key.\n"
-        "- **Sector-trailer** blocks (🔑) hold the keys and access bits. Cards always "
-        "return key bytes as zeros, so you'll never see the actual keys.\n"
-        "- Only **MIFARE Classic** (Mini / 1K / 4K) has a readable sector dump. Other "
-        "card types (Ultralight, NTAG, etc.) show UID + type only."
+        "- **All cards:** standard, type, ID (UID), manufacturer, memory size, and the "
+        "low-level ATQA / SAK.\n"
+        "- **NTAG / MIFARE Ultralight:** also the exact type (NTAG213/215/216), NDEF "
+        "status, and the full **GET_VERSION** breakdown.\n"
+        "- This tool identifies cards — it does **not** dump their memory contents."
     )
