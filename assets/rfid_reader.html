@@ -192,9 +192,9 @@
     return 'NFC-A (ISO14443-A)';
   }
   function phoneNfc(c){
-    if(c.family==='ultralight') return 'Yes (any NFC phone)';
-    if(c.family==='classic')    return 'Some Android only — not iPhone';
-    return 'Usually (NFC-A)';
+    if(c.family==='ultralight') return '✅ Android, ✅ Apple — standard NFC/NDEF tag';
+    if(c.family==='classic')    return '❓ Android, ❌ Apple — needs an NXP NFC chip; iPhone cannot read Classic';
+    return '✅ Android, ❓ Apple — depends on tag type';
   }
   function writeStatus(c){
     if(c.family==='classic') return 'Read / Write (with key)';
