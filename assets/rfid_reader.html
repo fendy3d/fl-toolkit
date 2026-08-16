@@ -197,13 +197,14 @@
     return '✅ Android, ❓ Apple — depends on tag type';
   }
   function writeStatus(c){
-    if(c.family==='classic') return 'Read / Write (with key)';
+    if(c.family==='classic') return '✅ Read, ✅ Write — with the sector key';
     if(c.family==='ultralight'){
       const cc=c.pages && c.pages[3];               // capability container
       if(cc && cc.slice(0,2).toLowerCase()==='e1'){
-        return (parseInt(cc.slice(6,8),16) & 0x0F)===0 ? 'Read / Write' : 'Read only';
+        const acc=parseInt(cc.slice(6,8),16);       // CC access byte
+        return ((acc>>4)===0?'✅':'❌')+' Read, '+((acc&0x0F)===0?'✅':'❌')+' Write';
       }
-      return 'Read / Write';                        // NTAG/UL default (no CC lock)
+      return '✅ Read, ✅ Write';                    // NTAG/UL default (no CC lock)
     }
     return '';
   }
