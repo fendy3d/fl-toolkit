@@ -53,6 +53,13 @@ TOOLS = [
         "desc": "Turn the Airtable Pay Run CSV into the BCA MultiAutoTransaksi "
                 "(MultiPayroll) upload file — no more CSV → xlsx step.",
     },
+    {
+        "icon": "📇",
+        "name": "RFID Reader",
+        "page": "pages/6_RFID_Reader.py",
+        "desc": "Read RFID/NFC cards from an ESP32 + RC522 over USB. Tap a card to "
+                "see its UID, type, and full MIFARE Classic memory dump in the browser.",
+    },
 ]
 
 for tool in TOOLS:
