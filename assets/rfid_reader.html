@@ -58,6 +58,13 @@
   details summary{cursor:pointer;color:var(--muted);font-size:13px}
   .banner{border:1px dashed var(--warn);border-radius:10px;padding:14px;background:color-mix(in srgb,var(--warn) 8%,transparent)}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .idline{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--muted);font-size:15px;letter-spacing:.5px;margin-top:4px;word-break:break-all}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 18px;margin:14px 0 0;font-size:13.5px}
+  .kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:600}
+  .sect{font-weight:700;margin:16px 0 4px;font-size:14px}
+  .bullets{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;list-style:none;padding:0;margin:6px 0 0}
+  .bullets li{padding:2px 0} .bullets .k{color:var(--muted)}
+  .lowlevel{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:var(--text)}
 </style>
 </head>
 <body>
@@ -84,11 +91,15 @@
       <span class="muted">The most recent card shows here.</span>
     </div>
     <div id="cardBody" style="display:none">
-      <div class="row" style="justify-content:space-between">
-        <div class="uid" id="uid">—</div>
-        <button class="link" id="copyUid">copy UID</button>
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="uid" id="cardType">—</div>
+          <div class="idline" id="cardId">—</div>
+        </div>
+        <button class="link" id="copyUid">copy ID</button>
       </div>
-      <div class="chips" id="chips"></div>
+      <dl class="kv" id="kv"></dl>
+      <div id="info"></div>
       <div id="sectors"></div>
     </div>
   </div>
@@ -143,41 +154,97 @@
   }
   function fmtHex(hex){ return (hex.match(/.{1,2}/g)||[]).join(' ').toUpperCase(); }
 
+  const MANUF={ '04':'NXP Semiconductors','02':'STMicroelectronics','05':'Infineon Technologies',
+    '07':'Texas Instruments','08':'Fujitsu','16':'EM Microelectronic','21':'EM Microelectronic-Marin',
+    '28':'Samsung','1d':'Mikron','57':'GIGA-TMS' };
+  const manufacturer = uid => {
+    const b=(uid||'').slice(0,2).toLowerCase();
+    return (MANUF[b]||'Unknown')+' ('+b.toUpperCase()+')';
+  };
+  const verBytes = v => (v&&/^[0-9a-fA-F]{16}$/.test(v)) ? v.match(/.{2}/g).map(h=>parseInt(h,16)) : null;
+  function ulType(ver){
+    if(!ver) return {type:'MIFARE Ultralight', mem:64};
+    const pt=ver[2], ss=ver[6];
+    if(pt===0x04){ if(ss===0x0f)return{type:'NTAG213',mem:180}; if(ss===0x11)return{type:'NTAG215',mem:540};
+                   if(ss===0x13)return{type:'NTAG216',mem:924}; return {type:'NTAG21x',mem:0}; }
+    if(pt===0x03){ if(ss===0x0b)return{type:'MIFARE Ultralight EV1 (MF0UL11)',mem:80};
+                   if(ss===0x0e)return{type:'MIFARE Ultralight EV1 (MF0UL21)',mem:164};
+                   return {type:'MIFARE Ultralight EV1',mem:0}; }
+    return {type:'MIFARE Ultralight', mem:64};
+  }
+  function ndefStatus(pages){
+    if(!pages||pages.length<5) return '—';
+    if((pages[3]||'').slice(0,2).toLowerCase()!=='e1') return 'Non-NDEF';
+    const tlv=(pages[4]||'').toLowerCase();
+    if(tlv.startsWith('03')) return parseInt(tlv.slice(2,4),16)>0 ? 'NDEF, Formatted' : 'NDEF, Unformatted';
+    return 'NDEF, Unformatted';
+  }
+  const uidColon = uid => (uid||'').match(/.{1,2}/g)?.join(':').toUpperCase() || '—';
+  const hx = b => '0x'+b.toString(16).toUpperCase().padStart(2,'0');
+
   function renderCard(c){
     $('placeholder').style.display='none';
     $('cardBody').style.display='block';
-    $('uid').textContent=(c.uid||'').match(/.{1,2}/g)?.join(':').toUpperCase() || '—';
-    const chips=[
-      ['Type', c.type||'Unknown'],
-      ['UID length', (c.uidLength||(c.uid?c.uid.length/2:0))+' bytes'],
-      ['SAK', (c.sak||'').toUpperCase()],
-    ];
-    if(c.sectors) chips.push(['Sectors', c.sectors.length]);
-    $('chips').innerHTML=chips.map(([k,v])=>`<span class="chip"><b>${esc(String(v))}</b> · ${esc(k)}</span>`).join('');
+    const ver=verBytes(c.version);
+
+    let type='Unknown', mem=0, status='—';
+    if(c.family==='ultralight'){ const u=ulType(ver); type=u.type; mem=u.mem; status=ndefStatus(c.pages); }
+    else if(c.family==='classic'){ type=c.piccName||'MIFARE Classic';
+      mem=/4K/i.test(type)?4096:/Mini/i.test(type)?320:1024; }
+    else { type=c.piccName||'Unknown'; }
+
+    $('cardType').textContent=type;
+    $('cardId').textContent='ID: '+uidColon(c.uid);
+
+    const kv=[['Family', c.std?('MiFare ('+c.std+')'):'MiFare'], ['Manufacturer', manufacturer(c.uid)]];
+    if(mem) kv.push(['Memory', mem+' bytes']);
+    if(status!=='—') kv.push(['Status', status]);
+    $('kv').innerHTML=kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
+
+    let info='<div class="sect">Additional Info</div>'+
+      `<div class="lowlevel">Low-level ID: ATQA: 0x${esc((c.atqa||'').toUpperCase())}, SAK: 0x${esc((c.sak||'').toUpperCase())}</div>`;
+    if(ver){
+      const raw=ver.map(b=>b.toString(16).toUpperCase().padStart(2,'0')).join(':');
+      info+='<div class="sect" style="font-size:13px;margin-top:12px">Get Version Details</div><ul class="bullets">'+
+        `<li><span class="k">Raw Response:</span> ${raw}</li>`+
+        `<li><span class="k">Major Version:</span> ${hx(ver[4])}</li>`+
+        `<li><span class="k">Minor Version:</span> ${hx(ver[5])}</li>`+
+        `<li><span class="k">Product Sub Type:</span> ${hx(ver[3])}</li>`+
+        `<li><span class="k">Product Type:</span> ${hx(ver[2])}</li>`+
+        `<li><span class="k">Protocol Type:</span> ${hx(ver[7])}</li>`+
+        `<li><span class="k">Storage Size:</span> ${hx(ver[6])}</li>`+
+        `<li><span class="k">Vendor Id:</span> ${hx(ver[1])}</li>`+
+        `<li><span class="k">Mifare Family:</span> MIFARE Ultralight</li></ul>`;
+    }
+    $('info').innerHTML=info;
 
     const secEl=$('sectors'); secEl.innerHTML='';
-    if(!c.sectors){
-      secEl.innerHTML='<div class="muted" style="margin-top:12px">No memory dump for this card type — UID and type only.</div>';
-      return;
-    }
-    for(const s of c.sectors){
+    if(c.family==='classic' && c.sectors) renderSectors(secEl,c.sectors);
+    else if(c.family==='ultralight' && c.pages) renderPages(secEl,c.pages);
+  }
+
+  function renderSectors(secEl,sectors){
+    for(const s of sectors){
       const wrap=document.createElement('div'); wrap.className='sec';
-      const denied = s.auth!=='ok';
-      let rows='';
-      for(const b of (s.blocks||[])){
-        const data=b.data;
-        rows+=`<tr class="${b.trailer?'trailer':''}">`+
-              `<td class="blk">${b.block}${b.trailer?' 🔑':''}</td>`+
-              `<td>${data?fmtHex(data):'<span class="muted">— unreadable —</span>'}</td>`+
-              `<td class="ascii">${data?esc(ascii(data)):''}</td></tr>`;
+      const denied=s.auth!=='ok'; let rows='';
+      for(const b of (s.blocks||[])){ const data=b.data;
+        rows+=`<tr class="${b.trailer?'trailer':''}"><td class="blk">${b.block}${b.trailer?' 🔑':''}</td>`+
+          `<td>${data?fmtHex(data):'<span class="muted">— unreadable —</span>'}</td>`+
+          `<td class="ascii">${data?esc(ascii(data)):''}</td></tr>`;
       }
-      wrap.innerHTML=
-        `<div class="sec-h">Sector ${s.sector}`+
-        `<span class="tag ${denied?'bad':'ok'}">${denied?'locked (needs key)':'read'}</span></div>`+
-        (denied?'':`<div class="scroll"><table>`+
-          `<tr><th class="blk">blk</th><th>data (hex)</th><th>ascii</th></tr>${rows}</table></div>`);
+      wrap.innerHTML=`<div class="sec-h">Sector ${s.sector}<span class="tag ${denied?'bad':'ok'}">${denied?'locked (needs key)':'read'}</span></div>`+
+        (denied?'':`<div class="scroll"><table><tr><th class="blk">blk</th><th>data (hex)</th><th>ascii</th></tr>${rows}</table></div>`);
       secEl.appendChild(wrap);
     }
+  }
+
+  function renderPages(secEl,pages){
+    let rows='';
+    pages.forEach((data,i)=>{ rows+=`<tr><td class="blk">${i}</td><td>${fmtHex(data)}</td><td class="ascii">${esc(ascii(data))}</td></tr>`; });
+    const d=document.createElement('details'); d.className='sec'; d.style.marginTop='12px'; d.open=false;
+    d.innerHTML=`<summary class="sec-h">Memory dump — ${pages.length} pages</summary>`+
+      `<div class="scroll"><table><tr><th class="blk">pg</th><th>data (hex)</th><th>ascii</th></tr>${rows}</table></div>`;
+    secEl.appendChild(d);
   }
 
   function handleLine(line){
@@ -230,7 +297,7 @@
   $('connect').addEventListener('click',connect);
   $('disconnect').addEventListener('click',disconnect);
   $('copyUid').addEventListener('click',()=>{
-    const t=$('uid').textContent.replace(/:/g,''); navigator.clipboard?.writeText(t);
+    const t=$('cardId').textContent.replace(/^ID:\s*/,'').replace(/:/g,''); navigator.clipboard?.writeText(t);
   });
   navigator.serial.addEventListener('disconnect',()=>{ if(port){ disconnect(); setStatus('Reader unplugged','err'); }});
 })();
