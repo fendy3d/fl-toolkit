@@ -186,6 +186,16 @@
     if(c.family==='ultralight') return 'MIFARE Ultralight';
     return '';
   }
+  function nfcKind(c){
+    if(c.family==='ultralight') return 'Yes — NFC Forum Type 2';
+    if(c.family==='classic')    return 'NFC-A radio only (not an NFC Forum tag)';
+    return 'NFC-A (ISO14443-A)';
+  }
+  function phoneNfc(c){
+    if(c.family==='ultralight') return 'Yes (any NFC phone)';
+    if(c.family==='classic')    return 'Some Android only — not iPhone';
+    return 'Usually (NFC-A)';
+  }
   function writeStatus(c){
     if(c.family==='classic') return 'Read / Write (with key)';
     if(c.family==='ultralight'){
@@ -214,6 +224,8 @@
 
     const kv=[];
     const mf=mifareFamily(c); if(mf) kv.push(['MiFare Family', mf]);
+    kv.push(['NFC', nfcKind(c)]);
+    kv.push(['Phone NFC read?', phoneNfc(c)]);
     // Manufacturer byte is only meaningful on 7-byte UIDs.
     if(c.uidLength===7 || (c.uid||'').length===14) kv.push(['Manufacturer', manufacturer(c.uid)]);
     if(mem) kv.push(['Memory', mem+' bytes']);
