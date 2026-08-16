@@ -181,6 +181,22 @@
   }
   const uidColon = uid => (uid||'').match(/.{1,2}/g)?.join(':').toUpperCase() || '—';
   const hx = b => '0x'+b.toString(16).toUpperCase().padStart(2,'0');
+  function mifareFamily(c){
+    if(c.family==='classic') return 'MIFARE Classic';
+    if(c.family==='ultralight') return 'MIFARE Ultralight';
+    return '';
+  }
+  function writeStatus(c){
+    if(c.family==='classic') return 'Read / Write (with key)';
+    if(c.family==='ultralight'){
+      const cc=c.pages && c.pages[3];               // capability container
+      if(cc && cc.slice(0,2).toLowerCase()==='e1'){
+        return (parseInt(cc.slice(6,8),16) & 0x0F)===0 ? 'Read / Write' : 'Read only';
+      }
+      return 'Read / Write';                        // NTAG/UL default (no CC lock)
+    }
+    return '';
+  }
 
   function renderCard(c){
     $('placeholder').style.display='none';
@@ -196,10 +212,15 @@
     $('cardType').textContent=type;
     $('cardId').textContent='ID: '+uidColon(c.uid);
 
-    const kv=[['Family', c.std?('MiFare ('+c.std+')'):'MiFare']];
+    const kv=[];
+    const mf=mifareFamily(c); if(mf) kv.push(['MiFare Family', mf]);
     // Manufacturer byte is only meaningful on 7-byte UIDs.
     if(c.uidLength===7 || (c.uid||'').length===14) kv.push(['Manufacturer', manufacturer(c.uid)]);
     if(mem) kv.push(['Memory', mem+' bytes']);
+    kv.push(['Frequency Type', 'HF']);
+    kv.push(['Frequency', '13.56 MHz']);
+    const ws=writeStatus(c); if(ws) kv.push(['Write Status', ws]);
+    kv.push(['Standard', c.std || 'ISO14443 Type A']);
     if(status!=='—') kv.push(['Status', status]);
     $('kv').innerHTML=kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
 
