@@ -54,11 +54,11 @@ TOOLS = [
                 "(MultiPayroll) upload file — no more CSV → xlsx step.",
     },
     {
-        "icon": "📇",
-        "name": "RFID Reader",
-        "page": "pages/6_RFID_Reader.py",
-        "desc": "Read RFID/NFC cards from an ESP32 + RC522 over USB. Tap a card to "
-                "see its type, ID, manufacturer, memory, and NDEF/version details.",
+        "icon": "📡",
+        "name": "RFID Reader (UHF)",
+        "page": "pages/6_RFID_Reader_UHF.py",
+        "desc": "Read UHF (EPC Gen2) tags from a XIAO ESP32-C3 + M5Stack UHF unit "
+                "over USB. Sees every tag within ~1–2 m, live, with EPC and RSSI.",
     },
 ]
 
