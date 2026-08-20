@@ -23,14 +23,14 @@ import streamlit.components.v1 as components
 
 from auth import require_auth
 
-st.set_page_config(page_title="RFID Reader (UHF) · FL Toolkit", page_icon="📡", layout="centered")
+st.set_page_config(page_title="RFID UHF Reader · FL Toolkit", page_icon="📡", layout="centered")
 require_auth()
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 READER_HTML = (ASSETS / "rfid_reader_uhf.html").read_text(encoding="utf-8")
 FIRMWARE = (ASSETS / "rfid_xiao_uhf.ino").read_text(encoding="utf-8")
 
-st.title("📡 RFID Reader (UHF)")
+st.title("📡 RFID UHF Reader")
 st.write("Plug in your **XIAO ESP32-C3 + M5Stack UHF RFID Unit** over USB, connect "
          "below, and bring a UHF tag in range to see its **EPC**, signal strength "
          "(RSSI), and read count — live. UHF reads at a distance (~1–2 m) and "
