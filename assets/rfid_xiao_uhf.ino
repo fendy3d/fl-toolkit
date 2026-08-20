@@ -45,6 +45,10 @@ uint8_t  fBuf[64];
 struct Seen { char epc[25]; uint32_t last; };
 Seen seen[16];
 
+// ── wiring self-check ──
+bool     moduleSeen  = false;
+uint32_t lastFrameMs = 0;
+
 void printHexByte(uint8_t b) { if (b < 0x10) Serial.print('0'); Serial.print(b, HEX); }
 void printHexStr(const uint8_t *buf, uint8_t len) { for (uint8_t i = 0; i < len; i++) printHexByte(buf[i]); }
 
@@ -106,8 +110,15 @@ void feedParser(uint8_t b) {
       break;
     case WAIT_CSUM: st = (b == fCsum) ? WAIT_END : WAIT_HDR; break;
     case WAIT_END:
-      if (b == 0x7E && fType == 0x02 && fCmd == 0x22) handleTag(fBuf, fLen);
-      // fType 0x01 / fCmd 0xFF = "no tag" error frame — expected, ignored.
+      if (b == 0x7E) {
+        if (!moduleSeen) {
+          moduleSeen = true;
+          Serial.println(F("# UHF module OK — wiring good, responding to polls"));
+        }
+        lastFrameMs = millis();
+        if (fType == 0x02 && fCmd == 0x22) handleTag(fBuf, fLen);
+        // fType 0x01 / fCmd 0xFF = "no tag" error frame — expected, counts as alive.
+      }
       st = WAIT_HDR;
       break;
   }
@@ -122,10 +133,18 @@ void setup() {
 }
 
 void loop() {
-  static uint32_t lastPoll = 0;
+  static uint32_t lastPoll = 0, lastWarn = 0;
   if (millis() - lastPoll >= POLL_INTERVAL_MS) {
     lastPoll = millis();
     UHF.write(POLL_CMD, sizeof(POLL_CMD));
   }
   while (UHF.available()) feedParser(UHF.read());
+
+  // Wiring self-check: the module answers every poll (even with no tag near),
+  // so 5 s of silence means it never got the poll or we can't hear the reply.
+  if (millis() - lastFrameMs > 5000 && millis() - lastWarn > 5000) {
+    lastWarn = millis();
+    Serial.println(F("# NO RESPONSE from UHF module — check wiring: "
+                     "red->5V, black->GND, and try swapping white/yellow"));
+  }
 }
