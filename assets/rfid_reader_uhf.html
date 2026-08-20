@@ -29,6 +29,8 @@
   button.primary{background:var(--accent);color:var(--accent-fg);border-color:transparent}
   button:disabled{opacity:.5;cursor:not-allowed}
   button.link{border:none;background:none;color:var(--accent);padding:4px 6px;text-decoration:underline}
+  select{font:inherit;font-weight:600;border:1px solid var(--border);background:var(--panel);
+    color:var(--text);padding:7px 8px;border-radius:9px;cursor:pointer}
   .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
     background:var(--chip);font-weight:600;font-size:12.5px}
   .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
@@ -64,6 +66,13 @@
     <h1>📡 UHF RFID Reader</h1>
     <span class="grow"></span>
     <span class="pill"><span id="dot" class="dot"></span><span id="status">Not connected</span></span>
+    <label class="muted" for="rate" style="font-size:12.5px;font-weight:600">Read rate</label>
+    <select id="rate" title="How often the reader polls for tags">
+      <option value="150" selected>Default (0.15 s)</option>
+      <option value="100">0.1 s</option>
+      <option value="500">0.5 s</option>
+      <option value="1000">1 s</option>
+    </select>
     <button id="newtab" class="link" title="Open this reader in its own browser tab">↗ new tab</button>
     <button id="connect" class="primary">Connect reader</button>
     <button id="disconnect" disabled>Disconnect</button>
@@ -100,8 +109,8 @@
     </div>
     <div class="scroll">
       <table>
-        <thead><tr><th>EPC</th><th>Bits</th><th>RSSI</th><th>Reads</th><th>Last seen</th></tr></thead>
-        <tbody id="tagRows"><tr><td colspan="5" class="muted">Nothing read yet.</td></tr></tbody>
+        <thead><tr><th>EPC</th><th>Bits</th><th>RSSI</th><th>Reads</th><th>First read</th><th>Last read</th></tr></thead>
+        <tbody id="tagRows"><tr><td colspan="6" class="muted">Nothing read yet.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -112,7 +121,8 @@
   </details>
   <div class="muted" style="font-size:12px">
     Chrome or Edge on desktop · 115200 baud · EPC Gen2 / ISO 18000-6C (UHF, 860–960 MHz) ·
-    tags dimmed after 3 s out of range.
+    tags dimmed after 3 s out of range · read rate applies on connect and resets to
+    Default when the reader reboots.
   </div>
 </div>
 
@@ -149,7 +159,7 @@
   }
   const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const epcBits = pc => { const n=parseInt(pc,16); return isNaN(n)?'—':((n>>11)*16); };
-  const agoText = ms => ms<1500 ? 'now' : ms<60000 ? Math.round(ms/1000)+'s ago' : Math.round(ms/60000)+'m ago';
+  const clock = ts => new Date(ts).toLocaleTimeString('en-GB',{hour12:false});
   // JRD-4035 RSSI typically lands around -30 (touching) .. -75 (edge of range)
   const rssiPct = r => Math.max(4, Math.min(100, Math.round((r+75)/45*100)));
 
@@ -158,6 +168,7 @@
     $('cardBody').style.display='block';
     $('latestEpc').textContent=(t.epc.match(/.{1,4}/g)||[t.epc]).join(' ');
     $('latestChips').innerHTML=
+      `<span class="chip">Read at <b>${esc(clock(t.last))}</b></span>`+
       `<span class="chip">RSSI <b>${esc(t.rssi)} dBm</b></span>`+
       `<span class="chip">EPC <b>${esc(epcBits(t.pc))} bit</b></span>`+
       `<span class="chip">PC <b>0x${esc(t.pc)}</b></span>`+
@@ -169,7 +180,7 @@
     const list=[...tags.values()].sort((a,b)=>b.last-a.last);
     $('tagCount').textContent=list.length?`· ${list.length}`:'';
     if(!list.length){
-      $('tagRows').innerHTML='<tr><td colspan="5" class="muted">Nothing read yet.</td></tr>';
+      $('tagRows').innerHTML='<tr><td colspan="6" class="muted">Nothing read yet.</td></tr>';
       return;
     }
     $('tagRows').innerHTML=list.map(t=>{
@@ -179,26 +190,38 @@
         <td>${esc(epcBits(t.pc))}</td>
         <td><span class="rssi-bar"><i style="width:${rssiPct(t.rssi)}%"></i></span>${esc(t.rssi)} dBm</td>
         <td>${esc(t.reads)}</td>
-        <td class="muted">${esc(agoText(now-t.last))}</td>
+        <td class="muted">${esc(clock(t.first))}</td>
+        <td>${esc(clock(t.last))}</td>
       </tr>`;
     }).join('');
   }
   setInterval(renderTable,1000);   // keep "last seen" / dimming fresh
 
   function handleTag(o){
-    const t=tags.get(o.epc)||{epc:o.epc,reads:0};
+    const t=tags.get(o.epc)||{epc:o.epc,reads:0,first:Date.now()};
     t.pc=o.pc; t.rssi=o.rssi; t.crc=o.crc; t.reads++; t.last=Date.now();
     tags.set(o.epc,t);
     renderLatest(t);
     renderTable();
   }
 
+  async function sendRate(){
+    if(!port||!port.writable) return;
+    try{
+      const w=port.writable.getWriter();
+      await w.write(new TextEncoder().encode('interval '+$('rate').value+'\n'));
+      w.releaseLock();
+    }catch(e){ log('[rate] '+e.message); }
+  }
+  $('rate').addEventListener('change',sendRate);
+
   function handleLine(line){
     line=line.trim(); if(!line) return;
     log(line);
     let obj; try{ obj=JSON.parse(line); }catch(e){ return; }
-    if(obj.event==='ready'){ setStatus('Reader ready — scanning','on'); }
+    if(obj.event==='ready'){ setStatus('Reader ready — scanning','on'); sendRate(); }
     else if(obj.event==='tag'){ handleTag(obj); }
+    else if(obj.event==='interval'){ log('[rate] reader polling every '+obj.ms+' ms'); }
   }
 
   async function readLoop(){
@@ -224,6 +247,7 @@
       $('connect').disabled=true; $('disconnect').disabled=false;
       setStatus('Connected','on');
       readLoop();
+      setTimeout(sendRate,600);   // apply dropdown rate (ready event only fires on boot)
     }catch(e){
       setStatus('Not connected','err'); log('[connect] '+e.name+': '+e.message);
       if(e.name==='SecurityError' || /permission/i.test(e.message)){

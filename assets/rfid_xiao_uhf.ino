@@ -32,8 +32,10 @@ const uint8_t POLL_CMD[] = {0xBB, 0x00, 0x22, 0x00, 0x00, 0x22, 0x7E};  // singl
 // To change TX power (dBm x100, default 2000 = 20 dBm; max 2600 = 26 dBm), send
 // e.g. 26 dBm: {0xBB, 0x00, 0xB6, 0x00, 0x02, 0x0A, 0x28, 0xEA, 0x7E}
 
-const uint32_t POLL_INTERVAL_MS = 150;   // ~7 polls/second
-const uint32_t NEW_TAG_GAP_MS   = 3000;  // readable line again after 3 s unseen
+// Poll rate. Adjustable at runtime from the web page (or Serial Monitor) by
+// sending a line like:  interval 500   (ms, clamped to 50..5000)
+uint32_t pollIntervalMs = 150;           // default: ~7 polls/second
+const uint32_t NEW_TAG_GAP_MS = 3000;    // readable line again after 3 s unseen
 
 // ── tiny frame parser ──
 enum { WAIT_HDR, WAIT_TYPE, WAIT_CMD, WAIT_LEN1, WAIT_LEN2, WAIT_PAYLOAD, WAIT_CSUM, WAIT_END };
@@ -48,6 +50,21 @@ Seen seen[16];
 // ── wiring self-check ──
 bool     moduleSeen  = false;
 uint32_t lastFrameMs = 0;
+
+// ── USB command input ("interval <ms>") ──
+char    cmdBuf[24];
+uint8_t cmdLen = 0;
+
+void handleCommand(char *line) {
+  if (strncmp(line, "interval ", 9) == 0) {
+    long v = atol(line + 9);
+    if (v < 50) v = 50; else if (v > 5000) v = 5000;
+    pollIntervalMs = (uint32_t)v;
+    Serial.print("{\"event\":\"interval\",\"ms\":");
+    Serial.print(pollIntervalMs);
+    Serial.println("}");
+  }
+}
 
 void printHexByte(uint8_t b) { if (b < 0x10) Serial.print('0'); Serial.print(b, HEX); }
 void printHexStr(const uint8_t *buf, uint8_t len) { for (uint8_t i = 0; i < len; i++) printHexByte(buf[i]); }
@@ -134,11 +151,20 @@ void setup() {
 
 void loop() {
   static uint32_t lastPoll = 0, lastWarn = 0;
-  if (millis() - lastPoll >= POLL_INTERVAL_MS) {
+  if (millis() - lastPoll >= pollIntervalMs) {
     lastPoll = millis();
     UHF.write(POLL_CMD, sizeof(POLL_CMD));
   }
   while (UHF.available()) feedParser(UHF.read());
+
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (cmdLen) { cmdBuf[cmdLen] = 0; handleCommand(cmdBuf); cmdLen = 0; }
+    } else if (cmdLen < sizeof(cmdBuf) - 1) {
+      cmdBuf[cmdLen++] = c;
+    }
+  }
 
   // Wiring self-check: the module answers every poll (even with no tag near),
   // so 5 s of silence means it never got the poll or we can't hear the reply.
