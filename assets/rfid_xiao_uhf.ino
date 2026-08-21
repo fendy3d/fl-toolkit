@@ -1,19 +1,25 @@
 /*
- * FL Toolkit — XIAO ESP32-C3 + M5Stack UHF RFID Unit (U107, JRD-4035)
- * -------------------------------------------------------------------
+ * FL Toolkit — XIAO ESP32-C3 + R300 UHF RFID module
+ * -------------------------------------------------
  * Continuously polls for UHF (EPC Gen2 / ISO 18000-6C) tags and reports each
  * read two ways over USB @ 115200 baud:
  *   1. a readable line for new tags (nice in the Arduino Serial Monitor), and
  *   2. one compact JSON line per read (consumed by the FL Toolkit
- *      "RFID Reader (UHF)" web page, which renders the live tag table).
+ *      "RFID Reader UHF" web page, which renders the live tag table).
  *
- * WIRING  (M5Stack Grove cable  ->  XIAO ESP32-C3)
- *   Black  (GND)          -> GND
- *   Red    (5V)           -> 5V   (USB passthrough — power the XIAO over USB-C)
- *   White  (unit TX, out) -> D7   (GPIO20, RX)
- *   Yellow (unit RX, in)  -> D6   (GPIO21, TX)
- * The unit is powered at 5 V but its UART is 3.3 V logic — no level shifter.
- * If you get no data, the single most likely fix is swapping white/yellow.
+ * The R300 is a UART module in the R200 / JRD-4035 family — same 115200-baud
+ * "BB..7E" frame protocol, so the parsing below is unchanged from the M5Stack unit.
+ *
+ * WIRING  (R300 module  ->  XIAO ESP32-C3)
+ *   GND             -> GND
+ *   VCC             -> 5V (or 3V3) — match your R300's rated voltage; check the
+ *                      board silkscreen (many R300 boards accept 3.3–5 V).
+ *   TXD (R300 out)  -> D7   (GPIO20, RX)
+ *   RXD (R300 in)   -> D6   (GPIO21, TX)
+ * The R300's UART is 3.3 V logic — safe with the XIAO, no level shifter needed.
+ * UHF transmit draws current in bursts: if the module resets or misses reads,
+ * power it from a solid 5 V supply instead of the XIAO's USB passthrough.
+ * If you get no data, the single most likely fix is swapping TXD/RXD.
  *
  * SETUP (Arduino IDE): install the "esp32" (Espressif) boards package, select
  * "XIAO_ESP32C3", and make sure Tools -> "USB CDC On Boot" is Enabled (it is
@@ -23,10 +29,10 @@
 #include <Arduino.h>
 
 #define UHF     Serial1
-#define PIN_RX  D7        // GPIO20 <- unit TX (white)
-#define PIN_TX  D6        // GPIO21 -> unit RX (yellow)
+#define PIN_RX  D7        // GPIO20 <- R300 TXD
+#define PIN_TX  D6        // GPIO21 -> R300 RXD
 
-// JRD-4035 frames: BB | type | cmd | len(2, MSB first) | payload | checksum | 7E
+// R200/R300 frames: BB | type | cmd | len(2, MSB first) | payload | checksum | 7E
 // checksum = (type + cmd + len + payload bytes) & 0xFF
 const uint8_t POLL_CMD[] = {0xBB, 0x00, 0x22, 0x00, 0x00, 0x22, 0x7E};  // single poll
 // To change TX power (dBm x100, default 2000 = 20 dBm; max 2600 = 26 dBm), send
@@ -145,7 +151,7 @@ void setup() {
   Serial.begin(115200);
   UHF.begin(115200, SERIAL_8N1, PIN_RX, PIN_TX);
   delay(300);                                    // module boot
-  Serial.println("{\"event\":\"ready\",\"reader\":\"JRD-4035\"}");
+  Serial.println("{\"event\":\"ready\",\"reader\":\"R300\"}");
   Serial.println(F("# UHF reader ready — polling for tags"));
 }
 
@@ -170,7 +176,7 @@ void loop() {
   // so 5 s of silence means it never got the poll or we can't hear the reply.
   if (millis() - lastFrameMs > 5000 && millis() - lastWarn > 5000) {
     lastWarn = millis();
-    Serial.println(F("# NO RESPONSE from UHF module — check wiring: "
-                     "red->5V, black->GND, and try swapping white/yellow"));
+    Serial.println(F("# NO RESPONSE from R300 — check wiring: "
+                     "VCC and GND powered, and try swapping TXD/RXD"));
   }
 }

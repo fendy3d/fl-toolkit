@@ -1,5 +1,5 @@
-"""RFID Reader (UHF) — read UHF (EPC Gen2) tags from a XIAO ESP32-C3 + M5Stack
-UHF RFID Unit (U107, JRD-4035) over USB.
+"""RFID Reader (UHF) — read UHF (EPC Gen2) tags from a XIAO ESP32-C3 + R300 UHF
+RFID module over USB.
 
 The reading happens entirely in your browser via
 the Web Serial API (Chrome or Edge on desktop) — tag data goes straight from
@@ -10,8 +10,8 @@ Because browsers block serial access inside embedded frames, the reader below
 falls back to an "open in a new tab" button when needed; that new tab is the
 same page running top-level, where USB access is allowed.
 
-Hardware: Seeed XIAO ESP32-C3 + M5Stack UHF RFID Unit (JRD-4035, 860–960 MHz).
-Firmware and wiring are in the expander below. No extra Python deps.
+Hardware: Seeed XIAO ESP32-C3 + R300 UHF RFID module (R200/JRD-4035 family,
+860–960 MHz). Firmware and wiring are in the expander below. No extra Python deps.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ READER_HTML = (ASSETS / "rfid_reader_uhf.html").read_text(encoding="utf-8")
 FIRMWARE = (ASSETS / "rfid_xiao_uhf.ino").read_text(encoding="utf-8")
 
 st.title("📡 RFID UHF Reader")
-st.write("Plug in your **XIAO ESP32-C3 + M5Stack UHF RFID Unit** over USB, connect "
+st.write("Plug in your **XIAO ESP32-C3 + R300 UHF RFID module** over USB, connect "
          "below, and bring a UHF tag in range to see its **EPC**, signal strength "
          "(RSSI), and read count — live. UHF reads at a distance (~1–2 m) and "
          "picks up **every** tag in range at once.")
@@ -40,27 +40,28 @@ st.info("🔒 Tag data goes straight from USB to your browser (Web Serial). It n
 
 with st.expander("🔌 Hardware wiring & firmware (do this once)"):
     st.markdown(
-        "**Parts:** Seeed XIAO ESP32-C3 · M5Stack UHF RFID Unit (U107, JRD-4035) · "
-        "breadboard · the unit's Grove cable (use a Grove-to-male-jumper cable, or "
-        "cut one end off the Grove cable and strip the wires).\n\n"
-        "**Wiring — Grove cable (UHF unit) → XIAO ESP32-C3.** The unit talks plain "
-        "UART at 115200 baud, so it's just four wires:\n\n"
-        "| Grove wire (UHF unit) | XIAO ESP32-C3 pin |\n"
+        "**Parts:** Seeed XIAO ESP32-C3 · R300 UHF RFID module · breadboard · "
+        "4 jumper wires (the R300 exposes VCC / GND / TXD / RXD header pins).\n\n"
+        "**Wiring — R300 module → XIAO ESP32-C3.** The R300 talks plain UART at "
+        "115200 baud (same R200/JRD-4035 protocol), so it's just four wires:\n\n"
+        "| R300 pin | XIAO ESP32-C3 pin |\n"
         "|---|---|\n"
-        "| Black (GND) | GND |\n"
-        "| Red (5V) | 5V |\n"
-        "| White (unit TX, data out) | **D7** (GPIO20, RX) |\n"
-        "| Yellow (unit RX, data in) | **D6** (GPIO21, TX) |\n\n"
+        "| GND | GND |\n"
+        "| VCC | **5V** (or **3V3** — match your R300's rated voltage) |\n"
+        "| TXD (R300 data out) | **D7** (GPIO20, RX) |\n"
+        "| RXD (R300 data in) | **D6** (GPIO21, TX) |\n\n"
         "D6/D7 are the two pins at the bottom of the right-hand column, just above "
-        "5V/GND — all four wires land on one side of the board.\n\n"
+        "5V/GND.\n\n"
         "**Good to know:**\n"
-        "- **Power:** the unit wants **5 V**, not 3.3 V. The XIAO's 5V pin is "
-        "passthrough from USB, so power the XIAO over USB-C. The unit can pull a "
-        "few hundred mA during a read burst — use a decent cable/port.\n"
-        "- **Logic levels:** the unit is powered at 5 V but its UART is **3.3 V "
-        "logic** (M5Stack units are built for ESP32 hosts) — no level shifter needed.\n"
-        "- **No data?** The single most likely cause is the white/yellow pair being "
-        "swapped (TX↔RX). Flip them — it won't damage anything.\n\n"
+        "- **Power / voltage:** match VCC to your R300's rating — **check the number "
+        "printed on the board** (many R300 boards accept 3.3–5 V). The XIAO's 5V pin "
+        "is USB passthrough. UHF transmit pulls current in bursts, so if the module "
+        "resets or misses reads, feed it a solid **5 V** supply rather than USB "
+        "passthrough.\n"
+        "- **Logic levels:** the R300's UART is **3.3 V logic** — safe with the "
+        "XIAO, no level shifter needed.\n"
+        "- **No data?** The single most likely cause is TXD/RXD being swapped. Flip "
+        "them — it won't damage anything.\n\n"
         "**Flash the firmware (Arduino IDE, once):**\n"
         "1. Install the **esp32** boards package (Boards Manager) and select "
         "**XIAO_ESP32C3**.\n"
@@ -91,7 +92,8 @@ with st.expander("What you'll see"):
         "- **Read rate:** the dropdown in the toolbar sets how often the reader "
         "polls — Default (0.15 s), 0.1 s, 0.5 s, or 1 s. It applies on connect "
         "and resets to Default when the reader is unplugged or rebooted.\n"
-        "- **Range:** roughly 1–2 m with the built-in ceramic antenna. RSSI closer "
+        "- **Range:** roughly 1–2 m with the R300's onboard antenna, more if your "
+        "board has a u.FL connector and you fit an external UHF antenna. RSSI closer "
         "to 0 (e.g. −35 dBm) means the tag is near; −70 dBm and below means it's "
         "at the edge of range.\n"
         "- This reads **UHF** (860–960 MHz, EPC Gen2 / ISO 18000-6C) tags — "

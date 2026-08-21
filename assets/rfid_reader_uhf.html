@@ -160,7 +160,7 @@
   const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const epcBits = pc => { const n=parseInt(pc,16); return isNaN(n)?'—':((n>>11)*16); };
   const clock = ts => new Date(ts).toLocaleTimeString('en-GB',{hour12:false});
-  // JRD-4035 RSSI typically lands around -30 (touching) .. -75 (edge of range)
+  // R300 RSSI typically lands around -30 (touching) .. -75 (edge of range)
   const rssiPct = r => Math.max(4, Math.min(100, Math.round((r+75)/45*100)));
 
   function renderLatest(t){
