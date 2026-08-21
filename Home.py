@@ -64,8 +64,8 @@ TOOLS = [
         "icon": "📡",
         "name": "RFID UHF Reader",
         "page": "pages/7_RFID_Reader_UHF.py",
-        "desc": "Read UHF (EPC Gen2) tags from a XIAO ESP32-C3 + M5Stack UHF unit "
-                "over USB. Sees every tag within ~1–2 m, live, with EPC and RSSI.",
+        "desc": "Plug in a USB UHF reader (R300) and scan — each tag's EPC drops "
+                "into a live list. No drivers, no setup; works in any browser.",
     },
 ]
 

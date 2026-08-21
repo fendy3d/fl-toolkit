@@ -7,14 +7,12 @@
 <style>
   :root{
     --bg:#f6f7f9; --panel:#ffffff; --border:#e3e6ea; --text:#1c1f23; --muted:#6b7280;
-    --accent:#2563eb; --accent-fg:#ffffff; --ok:#16a34a; --bad:#dc2626; --warn:#d97706;
-    --chip:#eef2f7; --mono:#0f172a;
+    --accent:#2563eb; --ok:#16a34a; --chip:#eef2f7; --mono:#0f172a; --focus:#2563eb;
   }
   @media (prefers-color-scheme:dark){
     :root{
       --bg:#0e1117; --panel:#171a21; --border:#2a2f3a; --text:#e6e8eb; --muted:#9aa3af;
-      --accent:#3b82f6; --accent-fg:#ffffff; --ok:#22c55e; --bad:#f87171; --warn:#fbbf24;
-      --chip:#222732; --mono:#dbe4ff;
+      --accent:#3b82f6; --ok:#22c55e; --chip:#222732; --mono:#dbe4ff; --focus:#3b82f6;
     }
   }
   *{box-sizing:border-box}
@@ -24,40 +22,33 @@
   .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
   h1{font-size:18px;margin:0;font-weight:700}
   .grow{flex:1}
-  button{font:inherit;font-weight:600;border:1px solid var(--border);background:var(--panel);
-    color:var(--text);padding:8px 14px;border-radius:9px;cursor:pointer}
-  button.primary{background:var(--accent);color:var(--accent-fg);border-color:transparent}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  button.link{border:none;background:none;color:var(--accent);padding:4px 6px;text-decoration:underline}
-  select{font:inherit;font-weight:600;border:1px solid var(--border);background:var(--panel);
-    color:var(--text);padding:7px 8px;border-radius:9px;cursor:pointer}
   .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
     background:var(--chip);font-weight:600;font-size:12.5px}
   .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
-  .dot.on{background:var(--ok)} .dot.err{background:var(--bad)}
+  .dot.on{background:var(--ok)}
+  .link{border:none;background:none;color:var(--accent);padding:4px 6px;text-decoration:underline;
+    cursor:pointer;font:inherit;font-weight:600}
+  .scan{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:17px;letter-spacing:1px;
+    padding:16px 16px;border:2px dashed var(--border);border-radius:12px;background:var(--panel);
+    color:var(--text);outline:none;margin-bottom:12px}
+  .scan:focus{border-color:var(--focus);border-style:solid}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
   .muted{color:var(--muted)}
-  .empty{text-align:center;color:var(--muted);padding:34px 10px}
-  .epc{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;
-    font-weight:700;letter-spacing:1px;color:var(--mono);word-break:break-all}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .empty{text-align:center;color:var(--muted);padding:26px 10px}
+  .lbl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  .epc{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:26px;font-weight:700;
+    letter-spacing:1px;color:var(--mono);word-break:break-all;margin-top:2px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   .chip{background:var(--chip);border-radius:8px;padding:5px 10px;font-size:12.5px}
   .chip b{font-weight:700}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  td,th{padding:6px 10px;text-align:left;border-top:1px solid var(--border);white-space:nowrap}
-  th{font-weight:600;color:var(--muted);border-top:none}
-  td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;word-break:break-all;white-space:normal}
-  tr.gone td{opacity:.45}
   .scroll{overflow-x:auto}
-  #log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;white-space:pre-wrap;
-    word-break:break-all;max-height:150px;overflow:auto;color:var(--muted);margin-top:8px}
-  details summary{cursor:pointer;color:var(--muted);font-size:13px}
-  .banner{border:1px dashed var(--warn);border-radius:10px;padding:14px;background:color-mix(in srgb,var(--warn) 8%,transparent)}
-  .sect{font-weight:700;font-size:14px}
-  .rssi-bar{display:inline-block;width:52px;height:7px;border-radius:4px;background:var(--chip);
-    vertical-align:middle;margin-right:7px;overflow:hidden}
-  .rssi-bar i{display:block;height:100%;background:var(--ok);border-radius:4px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:7px 12px;text-align:left;border-top:1px solid var(--border);white-space:nowrap}
+  th{font-weight:600;color:var(--muted);border-top:none}
+  td.epc-cell{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--mono)}
+  tr.fresh td{background:color-mix(in srgb,var(--ok) 12%,transparent)}
+  .foot{font-size:12px;margin-top:2px}
 </style>
 </head>
 <body>
@@ -65,35 +56,19 @@
   <div class="bar">
     <h1>📡 UHF RFID Reader</h1>
     <span class="grow"></span>
-    <span class="pill"><span id="dot" class="dot"></span><span id="status">Not connected</span></span>
-    <label class="muted" for="rate" style="font-size:12.5px;font-weight:600">Read rate</label>
-    <select id="rate" title="How often the reader polls for tags">
-      <option value="150" selected>Default (0.15 s)</option>
-      <option value="100">0.1 s</option>
-      <option value="500">0.5 s</option>
-      <option value="1000">1 s</option>
-    </select>
-    <button id="newtab" class="link" title="Open this reader in its own browser tab">↗ new tab</button>
-    <button id="connect" class="primary">Connect reader</button>
-    <button id="disconnect" disabled>Disconnect</button>
+    <span class="pill"><span id="dot" class="dot"></span><span id="status">Click the box, then scan</span></span>
+    <button id="clear" class="link">clear list</button>
   </div>
 
-  <div id="unsupported" class="panel banner" style="display:none">
-    <b>This embedded view can't access USB.</b>
-    <div class="muted" style="margin:6px 0 10px">Browsers block serial ports inside embedded frames.
-      Open the reader in its own tab (same page, full access), or use Chrome / Edge on desktop.</div>
-    <button id="popout" class="primary">Open reader in a new tab ↗</button>
-  </div>
+  <input id="scan" class="scan" autocomplete="off" autocapitalize="off" autocorrect="off"
+         spellcheck="false" placeholder="Click here, then scan a UHF tag…">
 
-  <div id="card" class="panel">
-    <div class="empty" id="placeholder">
-      Connect the reader, then bring a UHF tag in range.<br>
-      <span class="muted">UHF reads at a distance (~1–2 m) — every tag in range shows below.</span>
-    </div>
-    <div id="cardBody" style="display:none">
+  <div class="panel">
+    <div class="empty" id="placeholder">Scan a tag — the reader types its EPC into the box above.</div>
+    <div id="latestBody" style="display:none">
       <div class="row" style="justify-content:space-between;align-items:flex-start">
         <div>
-          <div class="muted" style="font-size:12px;font-weight:600">LATEST TAG · EPC</div>
+          <div class="lbl">Latest tag · EPC</div>
           <div class="epc" id="latestEpc">—</div>
         </div>
         <button class="link" id="copyEpc">copy EPC</button>
@@ -103,175 +78,102 @@
   </div>
 
   <div class="panel">
-    <div class="row" style="justify-content:space-between;margin-bottom:6px">
-      <span class="sect">Tags in range <span class="muted" id="tagCount"></span></span>
-      <button class="link" id="clear">clear list</button>
+    <div class="row" style="justify-content:space-between;margin-bottom:4px">
+      <b>Tags scanned</b><span class="muted" id="count"></span>
     </div>
     <div class="scroll">
       <table>
-        <thead><tr><th>EPC</th><th>Bits</th><th>RSSI</th><th>Reads</th><th>First read</th><th>Last read</th></tr></thead>
-        <tbody id="tagRows"><tr><td colspan="6" class="muted">Nothing read yet.</td></tr></tbody>
+        <thead><tr><th>EPC</th><th>Bits</th><th>Reads</th><th>First read</th><th>Last read</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="5" class="muted">Nothing scanned yet.</td></tr></tbody>
       </table>
     </div>
   </div>
 
-  <details class="panel">
-    <summary>Serial log</summary>
-    <div id="log"></div>
-  </details>
-  <div class="muted" style="font-size:12px">
-    Chrome or Edge on desktop · 115200 baud · EPC Gen2 / ISO 18000-6C (UHF, 860–960 MHz) ·
-    tags dimmed after 3 s out of range · read rate applies on connect and resets to
-    Default when the reader reboots.
-  </div>
+  <div class="muted foot">Plug in the R300, click the box, and scan. The reader types each tag's
+    EPC — works in any browser, no drivers or setup.</div>
 </div>
 
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const hasSerial = ('serial' in navigator);
-  let port=null, reader=null, keepReading=false, buf="";
-  const tags = new Map();   // epc -> {epc, pc, rssi, crc, reads, last}
-  const GONE_MS = 3000;
+  const input = $('scan');
+  const tags = new Map();          // epc -> {epc, reads, first, last}
+  let latest = null, debounce = null;
 
-  function openInNewTab(){
-    const html='<!doctype html>\n'+document.documentElement.outerHTML;
-    const w=window.open('','_blank');
-    if(!w){ alert('Popup blocked. Allow popups for this site, or download the reader and open it in Chrome.'); return; }
-    w.document.open(); w.document.write(html); w.document.close();
-  }
-  $('newtab').addEventListener('click',openInNewTab);
-  $('popout').addEventListener('click',openInNewTab);
-
-  if(!hasSerial){
-    $('unsupported').style.display='block';
-    $('connect').disabled=true;
-    return;
-  }
-
-  function setStatus(text,state){
-    $('status').textContent=text;
-    const d=$('dot'); d.className='dot'+(state==='on'?' on':state==='err'?' err':'');
-  }
-  function log(line){
-    const el=$('log'); el.textContent+=line+"\n"; el.scrollTop=el.scrollHeight;
-    if(el.textContent.length>20000) el.textContent=el.textContent.slice(-15000);
-  }
-  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-  const epcBits = pc => { const n=parseInt(pc,16); return isNaN(n)?'—':((n>>11)*16); };
   const clock = ts => new Date(ts).toLocaleTimeString('en-GB',{hour12:false});
-  // R300 RSSI typically lands around -30 (touching) .. -75 (edge of range)
-  const rssiPct = r => Math.max(4, Math.min(100, Math.round((r+75)/45*100)));
+  const esc = s => String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const spaced = epc => (epc.match(/.{1,4}/g)||[]).join(' ');
 
-  function renderLatest(t){
-    $('placeholder').style.display='none';
-    $('cardBody').style.display='block';
-    $('latestEpc').textContent=(t.epc.match(/.{1,4}/g)||[t.epc]).join(' ');
-    $('latestChips').innerHTML=
-      `<span class="chip">Read at <b>${esc(clock(t.last))}</b></span>`+
-      `<span class="chip">RSSI <b>${esc(t.rssi)} dBm</b></span>`+
-      `<span class="chip">EPC <b>${esc(epcBits(t.pc))} bit</b></span>`+
-      `<span class="chip">PC <b>0x${esc(t.pc)}</b></span>`+
-      `<span class="chip">CRC <b>0x${esc(t.crc)}</b></span>`;
+  function setStatus(text, on){
+    $('status').textContent = text;
+    $('dot').className = 'dot' + (on ? ' on' : '');
   }
 
-  function renderTable(){
-    const now=Date.now();
-    const list=[...tags.values()].sort((a,b)=>b.last-a.last);
-    $('tagCount').textContent=list.length?`· ${list.length}`:'';
-    if(!list.length){
-      $('tagRows').innerHTML='<tr><td colspan="6" class="muted">Nothing read yet.</td></tr>';
-      return;
-    }
-    $('tagRows').innerHTML=list.map(t=>{
-      const gone=(now-t.last)>GONE_MS;
-      return `<tr class="${gone?'gone':''}">
-        <td class="mono">${esc(t.epc)}</td>
-        <td>${esc(epcBits(t.pc))}</td>
-        <td><span class="rssi-bar"><i style="width:${rssiPct(t.rssi)}%"></i></span>${esc(t.rssi)} dBm</td>
-        <td>${esc(t.reads)}</td>
-        <td class="muted">${esc(clock(t.first))}</td>
-        <td>${esc(clock(t.last))}</td>
-      </tr>`;
-    }).join('');
-  }
-  setInterval(renderTable,1000);   // keep "last seen" / dimming fresh
-
-  function handleTag(o){
-    const t=tags.get(o.epc)||{epc:o.epc,reads:0,first:Date.now()};
-    t.pc=o.pc; t.rssi=o.rssi; t.crc=o.crc; t.reads++; t.last=Date.now();
-    tags.set(o.epc,t);
-    renderLatest(t);
-    renderTable();
+  function processScan(raw){
+    const epc = raw.toUpperCase().replace(/[^0-9A-F]/g,'');
+    if(epc.length < 4) return;                       // ignore stray input
+    const now = Date.now();
+    let t = tags.get(epc);
+    if(t){ t.reads++; t.last = now; } else { t = {epc, reads:1, first:now, last:now}; tags.set(epc, t); }
+    latest = epc;
+    render();
   }
 
-  async function sendRate(){
-    if(!port||!port.writable) return;
-    try{
-      const w=port.writable.getWriter();
-      await w.write(new TextEncoder().encode('interval '+$('rate').value+'\n'));
-      w.releaseLock();
-    }catch(e){ log('[rate] '+e.message); }
-  }
-  $('rate').addEventListener('change',sendRate);
-
-  function handleLine(line){
-    line=line.trim(); if(!line) return;
-    log(line);
-    let obj; try{ obj=JSON.parse(line); }catch(e){ return; }
-    if(obj.event==='ready'){ setStatus('Reader ready — scanning','on'); sendRate(); }
-    else if(obj.event==='tag'){ handleTag(obj); }
-    else if(obj.event==='interval'){ log('[rate] reader polling every '+obj.ms+' ms'); }
+  function finalize(){
+    clearTimeout(debounce); debounce = null;
+    const raw = input.value;
+    input.value = '';
+    if(raw.trim()) processScan(raw);
   }
 
-  async function readLoop(){
-    const decoder=new TextDecoderStream();
-    const closed=port.readable.pipeTo(decoder.writable).catch(()=>{});
-    reader=decoder.readable.getReader();
-    try{
-      while(keepReading){
-        const {value,done}=await reader.read();
-        if(done) break;
-        buf+=value; let i;
-        while((i=buf.indexOf("\n"))>=0){ handleLine(buf.slice(0,i)); buf=buf.slice(i+1); }
-      }
-    }catch(e){ log('[read error] '+e.message); }
-    finally{ try{reader.releaseLock();}catch(_){} await closed; }
-  }
-
-  async function connect(){
-    try{
-      port=await navigator.serial.requestPort();
-      await port.open({baudRate:115200});
-      keepReading=true;
-      $('connect').disabled=true; $('disconnect').disabled=false;
-      setStatus('Connected','on');
-      readLoop();
-      setTimeout(sendRate,600);   // apply dropdown rate (ready event only fires on boot)
-    }catch(e){
-      setStatus('Not connected','err'); log('[connect] '+e.name+': '+e.message);
-      if(e.name==='SecurityError' || /permission/i.test(e.message)){
-        $('unsupported').style.display='block';   // embedded serial blocked → offer pop-out
-      }
-    }
-  }
-  async function disconnect(){
-    keepReading=false;
-    try{ if(reader) await reader.cancel(); }catch(_){}
-    try{ if(port) await port.close(); }catch(_){}
-    port=null;
-    $('connect').disabled=false; $('disconnect').disabled=true;
-    setStatus('Not connected');
-  }
-
-  $('connect').addEventListener('click',connect);
-  $('disconnect').addEventListener('click',disconnect);
-  $('clear').addEventListener('click',()=>{ tags.clear(); renderTable();
-    $('cardBody').style.display='none'; $('placeholder').style.display='block'; });
-  $('copyEpc').addEventListener('click',()=>{
-    navigator.clipboard?.writeText($('latestEpc').textContent.replace(/\s/g,''));
+  input.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); finalize(); }
   });
-  navigator.serial.addEventListener('disconnect',()=>{ if(port){ disconnect(); setStatus('Reader unplugged','err'); }});
+  input.addEventListener('input', () => {                // reader that sends no Enter
+    clearTimeout(debounce);
+    debounce = setTimeout(finalize, 120);
+  });
+  input.addEventListener('focus', () => setStatus('Ready — scan a tag', true));
+  input.addEventListener('blur',  () => setStatus('Click the box, then scan', false));
+
+  // Keep the scan box focused so no scan is lost when the user clicks around.
+  document.addEventListener('click', e => { if(e.target.tagName !== 'BUTTON') input.focus(); });
+
+  function render(){
+    // latest tag
+    const t = latest && tags.get(latest);
+    if(t){
+      $('placeholder').style.display='none';
+      $('latestBody').style.display='block';
+      $('latestEpc').textContent = spaced(t.epc);
+      $('latestChips').innerHTML =
+        `<span class="chip"><b>${t.epc.length*4}</b> · bit EPC</span>`+
+        `<span class="chip"><b>${t.reads}</b> · reads</span>`+
+        `<span class="chip"><b>${clock(t.first)}</b> · first</span>`+
+        `<span class="chip"><b>${clock(t.last)}</b> · last</span>`;
+    }
+    // table, most-recent first
+    const list = [...tags.values()].sort((a,b)=>b.last-a.last);
+    const now = Date.now();
+    $('count').textContent = list.length ? `${list.length} unique · ${list.reduce((n,x)=>n+x.reads,0)} reads` : '';
+    $('rows').innerHTML = list.length ? list.map(x =>
+      `<tr class="${now-x.last<800?'fresh':''}">`+
+      `<td class="epc-cell">${esc(spaced(x.epc))}</td>`+
+      `<td>${x.epc.length*4}</td><td>${x.reads}</td>`+
+      `<td>${clock(x.first)}</td><td>${clock(x.last)}</td></tr>`
+    ).join('') : '<tr><td colspan="5" class="muted">Nothing scanned yet.</td></tr>';
+  }
+
+  $('clear').addEventListener('click', () => {
+    tags.clear(); latest = null;
+    $('latestBody').style.display='none'; $('placeholder').style.display='block';
+    render(); input.focus();
+  });
+  $('copyEpc').addEventListener('click', () => {
+    if(latest) navigator.clipboard?.writeText(latest);
+  });
+
+  input.focus();
 })();
 </script>
 </body>
