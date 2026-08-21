@@ -17,13 +17,13 @@ import streamlit.components.v1 as components
 
 from auth import require_auth
 
-st.set_page_config(page_title="RFID UHF Reader · FL Toolkit", page_icon="📡", layout="centered")
+st.set_page_config(page_title="RFID UHF (USB) · FL Toolkit", page_icon="📡", layout="centered")
 require_auth()
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 READER_HTML = (ASSETS / "rfid_reader_uhf.html").read_text(encoding="utf-8")
 
-st.title("📡 RFID UHF Reader")
+st.title("📡 RFID UHF Reader — USB (plug & scan)")
 st.write("Plug your **R300 USB UHF reader** into the computer, click the scan box "
          "below, and scan a UHF tag to see its **EPC** — each new tag drops into the "
          "live list. UHF reads at a distance (~1–2 m).")
